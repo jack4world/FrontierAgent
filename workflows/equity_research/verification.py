@@ -16,10 +16,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
 
-Fact = dict[str, Any]
-Claim = dict[str, Any]
+from plugins.tools.finance.ledger import Claim, Fact
 
 # (fact) -> the authoritative value from XBRL, or None when the concept /
 # period is not reported.
@@ -36,6 +34,8 @@ class Verdict(Enum):
     QUOTE_CONFIRMED = "quote_confirmed"
     DELETED = "deleted"
     UNVERIFIED = "unverified"
+    UNRESOLVED = "unresolved"
+    UNKNOWN_TIER = "unknown_tier"
 
 
 @dataclass(frozen=True)
@@ -70,7 +70,9 @@ def verify(
 
     for fact in facts:
         tier = fact.get("tier")
-        if tier == "quoted_primary":
+        if tier == "xbrl_verified":
+            checked, finding = _check_xbrl(fact, xbrl_lookup)
+        elif tier == "quoted_primary":
             checked, finding = _check_quote(fact, source_text)
         elif tier == "secondary":
             # Nothing to check against. Say so and keep the number — the
@@ -80,7 +82,12 @@ def verify(
                 fact_id=fact["fact_id"], verdict=Verdict.UNVERIFIED,
             )
         else:
-            checked, finding = _check_xbrl(fact, xbrl_lookup)
+            # No default gate. Routing an unrecognised tier into the XBRL
+            # branch would let a typo submit a news figure to a gate that
+            # "corrects" it against a concept it was never read from.
+            checked, finding = fact, Finding(
+                fact_id=fact["fact_id"], verdict=Verdict.UNKNOWN_TIER,
+            )
         findings.append(finding)
         if checked is not None:
             out_facts.append(checked)
@@ -140,6 +147,17 @@ def _check_xbrl(fact: Fact, lookup: XbrlLookup) -> tuple[Fact, Finding]:
     """
     reported = fact.get("value")
     authoritative = lookup(fact)
+
+    if authoritative is None:
+        # A lookup miss is not a disagreement. XBRL frames are absent for
+        # filers who report a concept only annually, and overwriting the
+        # reported figure with the absence of an answer would destroy a number
+        # and label the destruction a correction.
+        return fact, Finding(
+            fact_id=fact["fact_id"],
+            verdict=Verdict.UNRESOLVED,
+            reported_value=reported,
+        )
 
     if authoritative == reported:
         return fact, Finding(

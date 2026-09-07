@@ -67,6 +67,25 @@ async def _get_json(url: str) -> dict[str, Any]:
         return response.json()
 
 
+def _concept_url(cik: str, concept: str) -> str:
+    """Canonical companyconcept URL for one filer's us-gaap tag."""
+    return f"{_BASE}/companyconcept/CIK{cik}/us-gaap/{concept}.json"
+
+
+async def _fetch_concept(cik: str, concept: str) -> tuple[dict[str, Any] | None, str, str]:
+    """Fetch a concept document. Returns (payload, url, error) — never raises.
+
+    Failures come back to the model as JSON it can act on; an exception here
+    would abort the agent turn over a transient SEC hiccup.
+    """
+    url = _concept_url(cik, concept)
+    try:
+        return await _get_json(url), url, ""
+    except Exception as exc:
+        logger.warning("EDGAR fetch failed for %s: %s", url, exc)
+        return None, url, str(exc)
+
+
 def _fiscal_label(entry: dict[str, Any]) -> str:
     """Build the filer's own period label from ``fy`` / ``fp``."""
     fy, fp = entry.get("fy"), entry.get("fp")
@@ -120,13 +139,9 @@ async def fetch_xbrl_metric(ticker: str, metric: str, calendar_period: str) -> s
         })
 
     cik, concept = entry["cik"], entry["concept"]
-    url = f"{_BASE}/companyconcept/CIK{cik}/us-gaap/{concept}.json"
-
-    try:
-        payload = await _get_json(url)
-    except Exception as exc:  # surfaced to the model as JSON, never raised
-        logger.warning("EDGAR fetch failed for %s: %s", url, exc)
-        return json.dumps({"status": "fetch_failed", "error": str(exc), "url": url})
+    payload, url, error = await _fetch_concept(cik, concept)
+    if payload is None:
+        return json.dumps({"status": "fetch_failed", "error": error, "url": url})
 
     units: dict[str, Any] = payload.get("units", {}) or {}
     for unit, entries in units.items():
@@ -172,11 +187,9 @@ async def fetch_xbrl_concept(cik: str, concept: str) -> str:
     Returns:
         JSON with every reported observation, newest last.
     """
-    url = f"{_BASE}/companyconcept/CIK{cik}/us-gaap/{concept}.json"
-    try:
-        payload = await _get_json(url)
-    except Exception as exc:  # surfaced to the model as JSON, never raised
-        return json.dumps({"status": "fetch_failed", "error": str(exc), "url": url})
+    payload, url, error = await _fetch_concept(cik, concept)
+    if payload is None:
+        return json.dumps({"status": "fetch_failed", "error": error, "url": url})
 
     units: dict[str, Any] = payload.get("units", {}) or {}
     observations = [

@@ -1,9 +1,12 @@
 """Finance tools for the equity-research workflow.
 
-Deliberately NOT part of ``plugins.tools.get_builtin_tools()``. That registry is
-an explicit allowlist pinned by ``tests/test_tool_registry.py``; a domain feature
-should not force every contributor's diff through it. The equity-research
-workflow registers these itself.
+Registered in ``plugins.tools.get_builtin_tools()`` alongside the rest.
+
+That was not the first plan: keeping them out of the pinned allowlist looked
+tidier. But ``ResourceManager.get_tools_for_role`` filters the tool map by the
+role's permitted names and silently drops anything it cannot resolve, so tools
+outside the map leave a role quietly holding nothing. Registration is scoped by
+role permissions anyway — workflows that do not name these never see them.
 """
 
 from __future__ import annotations

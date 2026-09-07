@@ -12,6 +12,7 @@ import pytest
 from frontier_agent.core.runtime.registries.agents import AgentRegistry
 from frontier_agent.core.runtime.registries.workflows import WorkflowContext
 from frontier_agent.scheduling.pipeline_registry import PipelineRegistry
+from plugins.tools import get_builtin_tools
 from workflows.agent_team import WEB_TOOL_NAMES
 from workflows.equity_research import ANALYST_ROLE_ID, MAIN_ROLE_ID, register
 
@@ -35,6 +36,20 @@ def test_equity_research_registers_its_two_roles() -> None:
 
     assert agents.has(MAIN_ROLE_ID)
     assert agents.has(ANALYST_ROLE_ID)
+
+
+def test_every_tool_the_roles_name_actually_resolves(agents: AgentRegistry) -> None:
+    # ResourceManager builds a role's toolset with
+    # ``[t for name, t in self._tools.items() if name in allowed]`` — a name it
+    # cannot resolve is silently dropped, not reported. So a role can name
+    # emit_fact, start clean, and simply never have it. Asserting the name is
+    # in the list proves nothing; asserting it resolves is the real invariant.
+    available = set(get_builtin_tools())
+
+    for role_id in (MAIN_ROLE_ID, ANALYST_ROLE_ID):
+        role = agents.get(role_id)
+        missing = [name for name in role.allowed_tools if name not in available]
+        assert missing == [], f"{role_id} names unregistered tools: {missing}"
 
 
 def test_the_analyst_cannot_reach_the_network(agents: AgentRegistry) -> None:

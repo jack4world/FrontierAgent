@@ -16,7 +16,6 @@ from __future__ import annotations
 from frontier_agent.core.runtime.registries.workflows import WorkflowContext
 from frontier_agent.models.agent_definition import AgentDefinition
 
-PIPELINE_ID = "equity_research"
 MAIN_ROLE_ID = "equity_research_main"
 ANALYST_ROLE_ID = "equity_research_analyst"
 
@@ -101,6 +100,5 @@ __all__ = [
     "ANALYST_ROLE_ID",
     "MAIN_AGENT_DEF",
     "MAIN_ROLE_ID",
-    "PIPELINE_ID",
     "register",
 ]

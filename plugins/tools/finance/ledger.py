@@ -16,6 +16,8 @@ from typing import Any
 from frontier_agent.core.execution_context import get_current_execution_scope
 from plugins.tools._bus_scope import resolve_bus_task_id
 
+# The two table row shapes. verification.py imports these rather than
+# redeclaring them, so the gate and the ledger cannot drift apart.
 Fact = dict[str, Any]
 Claim = dict[str, Any]
 
@@ -55,23 +57,37 @@ def record_fact(fact: Fact) -> Fact | None:
 
 
 def record_claim(claim: Claim) -> None:
+    """Append a claim to this run's table."""
     _CLAIMS.setdefault(ledger_key(), []).append(claim)
 
 
 def ledger_facts() -> list[Fact]:
+    """Every fact recorded in this run, in insertion order."""
     return list(_FACTS.get(ledger_key(), {}).values())
 
 
 def ledger_claims() -> list[Claim]:
+    """Every claim recorded in this run, in emission order."""
     return list(_CLAIMS.get(ledger_key(), []))
 
 
 def known_fact_ids() -> set[str]:
+    """Ids this run has actually issued.
+
+    ``emit_claim`` validates against this, so an id the ledger never
+    minted is one the model invented.
+    """
     return set(_FACTS.get(ledger_key(), {}))
 
 
 def clear_ledger() -> None:
-    """Drop this run's tables. Called at run end and between tests."""
+    """Drop this run's tables.
+
+    Called between tests today. It must also be called at run end once a
+    pipeline node exists, the way ``task_board.clear_board`` is — otherwise a
+    long-lived process carries one run's facts into the next, and dedupe by
+    content hash would silently join two unrelated runs' tables.
+    """
     key = ledger_key()
     _FACTS.pop(key, None)
     _CLAIMS.pop(key, None)

@@ -142,6 +142,7 @@ async def test_a_quantified_claim_without_a_derivation_path_is_rejected() -> Non
         await emit_claim.ainvoke(
             _claim_args(
                 depends_on=[fact_id],
+                counter_evidence=[fact_id],
                 impact_value=300_000_000,
                 impact_unit="USD",
                 derivation=[],
@@ -158,7 +159,9 @@ async def test_a_directional_claim_needs_no_derivation() -> None:
     fact_id = await _emit_supporting_fact()
 
     recorded = json.loads(
-        await emit_claim.ainvoke(_claim_args(depends_on=[fact_id]))
+        await emit_claim.ainvoke(
+            _claim_args(depends_on=[fact_id], counter_evidence=[fact_id])
+        )
     )
 
     assert recorded["status"] == "recorded"
@@ -257,3 +260,76 @@ async def test_an_unmapped_metric_is_refused_rather_than_guessed(
 
     assert result["status"] == "unmapped"
     assert "gross_margin" in result["error"]
+
+
+async def test_a_claim_without_counter_evidence_is_rejected() -> None:
+    # The spec makes counter_evidence mandatory for a reason: four analysts
+    # each arguing their own link produces a report that agrees with itself
+    # and has checked nothing. Enforcing falsification while leaving this
+    # optional would drop half the guard.
+    fact_id = await _emit_supporting_fact()
+
+    rejected = json.loads(
+        await emit_claim.ainvoke(
+            _claim_args(depends_on=[fact_id], counter_evidence=[])
+        )
+    )
+
+    assert rejected["status"] == "rejected"
+    assert "counter_evidence" in rejected["error"]
+
+
+async def test_counter_evidence_must_cite_real_facts() -> None:
+    # Requiring counter-evidence would invite inventing it, so the ids are
+    # checked the same way supports are: the analyst has to emit a sourced
+    # fact before it can point at one.
+    fact_id = await _emit_supporting_fact()
+
+    rejected = json.loads(
+        await emit_claim.ainvoke(
+            _claim_args(depends_on=[fact_id], counter_evidence=["f-invented-0000"])
+        )
+    )
+
+    assert rejected["status"] == "rejected"
+    assert "f-invented-0000" in rejected["error"]
+
+
+async def test_a_derivation_step_that_cites_no_fact_is_rejected() -> None:
+    # "Each step names the fact_id it consumes" is what makes the arithmetic
+    # re-checkable. A step of prose is a number with extra words around it.
+    fact_id = await _emit_supporting_fact()
+
+    rejected = json.loads(
+        await emit_claim.ainvoke(
+            _claim_args(
+                depends_on=[fact_id],
+                counter_evidence=[fact_id],
+                impact_value=300_000_000,
+                impact_unit="USD",
+                derivation=["capex rises, so module orders rise by about 8%"],
+            )
+        )
+    )
+
+    assert rejected["status"] == "rejected"
+    assert "derivation" in rejected["error"]
+
+
+async def test_a_quantified_claim_with_a_grounded_derivation_is_recorded() -> None:
+    fact_id = await _emit_supporting_fact()
+
+    recorded = json.loads(
+        await emit_claim.ainvoke(
+            _claim_args(
+                depends_on=[fact_id],
+                counter_evidence=[fact_id],
+                impact_value=300_000_000,
+                impact_unit="USD",
+                derivation=[f"{fact_id} * 0.008 = 300000000 USD of module content"],
+            )
+        )
+    )
+
+    assert recorded["status"] == "recorded"
+    assert ledger_claims()[0]["impact"] == {"value": 300_000_000, "unit": "USD"}

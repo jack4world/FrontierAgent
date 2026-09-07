@@ -29,6 +29,13 @@ logger = logging.getLogger(__name__)
 TIERS = ("xbrl_verified", "quoted_primary", "secondary")
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
+# fact ids are minted by build_fact_id, so this is the shape a derivation
+# step must contain for the arithmetic to be traceable to a source.
+_FACT_REF_RE = re.compile(r"f-[a-z0-9-]+-[0-9a-f]{8}")
+
+
+def _rejected(error: str, **extra: object) -> str:
+    return json.dumps({"status": "rejected", "error": error, **extra})
 
 
 def _slug(text: str) -> str:
@@ -103,28 +110,19 @@ async def emit_fact(
         JSON with the assigned ``fact_id``, or a rejection explaining what to fix.
     """
     if tier not in TIERS:
-        return json.dumps({
-            "status": "rejected",
-            "error": f"tier must be one of {list(TIERS)}; got {tier!r}",
-        })
+        return _rejected(f"tier must be one of {list(TIERS)}; got {tier!r}")
 
     if tier == "quoted_primary" and not (verbatim or "").strip():
-        return json.dumps({
-            "status": "rejected",
-            "error": (
+        return _rejected(
                 "tier=quoted_primary requires `verbatim`: the exact sentence "
                 "from the source containing this number."
-            ),
-        })
+            )
 
     if tier == "xbrl_verified" and not (concept or "").strip():
-        return json.dumps({
-            "status": "rejected",
-            "error": (
+        return _rejected(
                 "tier=xbrl_verified requires `concept`: the us-gaap tag the "
                 "value was read from."
-            ),
-        })
+            )
 
     fact_id = build_fact_id(
         entity, metric, calendar_period, source_url, accession, concept,
@@ -201,15 +199,19 @@ async def emit_claim(
         falsification: What observation would show this claim to be wrong.
             Required. A claim that cannot be disproved cannot be monitored, and
             cannot be told apart from consensus restated confidently.
-        counter_evidence: ``fact_id`` values that cut against this claim. You
-            are responsible for the evidence *against* your own link.
+        counter_evidence: ``fact_id`` values that cut against this claim.
+            **Required, and checked against the ledger like ``depends_on``.**
+            You are responsible for the evidence against your own link — if you
+            looked and genuinely found none, emit the fact that demonstrates the
+            absence and cite that.
         lag_quarters: Expected transmission lag, in quarters.
         impact_value: Quantified downstream impact. Optional — and only allowed
             alongside ``derivation``.
         impact_unit: Unit for ``impact_value``.
-        derivation: The arithmetic, one step per entry, each naming the
-            ``fact_id`` it consumes. **Required whenever ``impact_value`` is
-            given.** If you cannot show the steps, leave the number out and let
+        derivation: The arithmetic, one step per entry. **Every step must
+            contain at least one ``fact_id``**, or the step is rejected — a step
+            without one cannot be re-checked. Required whenever ``impact_value``
+            is given. If you cannot show the steps, leave the number out and let
             the claim stand on direction alone — that is the honest answer, and
             it is accepted.
 
@@ -217,36 +219,52 @@ async def emit_claim(
         JSON with the assigned ``claim_id``, or a rejection explaining what to fix.
     """
     if not (falsification or "").strip():
-        return json.dumps({
-            "status": "rejected",
-            "error": (
+        return _rejected(
                 "`falsification` is required: state what observation would "
                 "show this claim to be wrong."
-            ),
-        })
+            )
 
     refs = list(depends_on or [])
     known = known_fact_ids()
     unknown = [ref for ref in refs if ref not in known]
     if unknown:
-        return json.dumps({
-            "status": "rejected",
-            "error": (
+        return _rejected(
                 f"unknown fact_id(s): {unknown}. Claims may only cite ids "
                 "returned by emit_fact. Emit the number as a fact first."
-            ),
-        })
+            )
+
+    against = list(counter_evidence or [])
+    if not against:
+        return _rejected(
+            "`counter_evidence` is required: cite the fact_id(s) that cut "
+            "against this claim. You know this link best, so you are the one "
+            "positioned to say where it breaks. If you looked and found "
+            "nothing, emit the fact that shows the absence and cite that."
+        )
+
+    unknown_against = [ref for ref in against if ref not in known]
+    if unknown_against:
+        return _rejected(
+            f"unknown counter_evidence fact_id(s): {unknown_against}. "
+            "Counter-evidence is held to the same standard as support: emit "
+            "the sourced fact first, then cite it."
+        )
 
     steps = list(derivation or [])
     if impact_value is not None and not steps:
-        return json.dumps({
-            "status": "rejected",
-            "error": (
-                "`impact_value` requires `derivation`: show each arithmetic "
-                "step and the fact_id it consumes. Without the path, drop the "
-                "number and state direction only."
-            ),
-        })
+        return _rejected(
+            "`impact_value` requires `derivation`: show each arithmetic step "
+            "and the fact_id it consumes. Without the path, drop the number "
+            "and state direction only."
+        )
+
+    ungrounded = [step for step in steps if not _FACT_REF_RE.search(step)]
+    if ungrounded:
+        return _rejected(
+            f"these `derivation` steps cite no fact_id: {ungrounded}. Each "
+            "step must name the fact it consumes, or the arithmetic cannot be "
+            "re-checked and the number is prose with digits in it."
+        )
 
     claim_id = f"c-{len(ledger_claims()) + 1:03d}"
     claim = {
@@ -261,7 +279,7 @@ async def emit_claim(
         ),
         "lag": {"quarters": lag_quarters, "basis": refs[0] if refs else None},
         "falsification": falsification.strip(),
-        "counter_evidence": list(counter_evidence or []),
+        "counter_evidence": against,
     }
 
     record_claim(claim)

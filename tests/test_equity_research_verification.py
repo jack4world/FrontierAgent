@@ -189,3 +189,35 @@ def test_claim_citing_only_surviving_facts_is_left_alone() -> None:
     )
 
     assert result.claims[0]["unsupported_by"] == []
+
+
+def test_a_figure_the_filing_does_not_report_is_flagged_not_blanked() -> None:
+    # A lookup miss is not a disagreement. Overwriting the reported number with
+    # the absence of an answer would destroy a figure and label the destruction
+    # a correction — the one outcome worse than leaving it unchecked.
+    reported = _fact()
+
+    result = verify(
+        [reported],
+        [],
+        xbrl_lookup=lambda _fact: None,
+        source_text=lambda _fact: "",
+    )
+
+    assert result.facts[0]["value"] == 37_400_000_000
+    assert result.findings[0].verdict is Verdict.UNRESOLVED
+
+
+def test_a_fact_with_an_unrecognised_tier_is_not_silently_hard_gated() -> None:
+    # Defaulting an unknown tier into the XBRL branch means a typo in `tier`
+    # quietly submits a news figure to a gate that will "correct" it against a
+    # concept it was never read from.
+    odd = _fact(tier="xbrl-verified")  # hyphen, not underscore
+
+    def _never(fact: dict[str, Any]) -> Any:
+        raise AssertionError("an unrecognised tier must not reach a gate")
+
+    result = verify([odd], [], xbrl_lookup=_never, source_text=_never)
+
+    assert result.facts[0]["value"] == 37_400_000_000
+    assert result.findings[0].verdict is Verdict.UNKNOWN_TIER

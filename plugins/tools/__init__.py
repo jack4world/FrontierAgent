@@ -16,9 +16,12 @@ from plugins.tools.file_editor import (
     file_editor_str_replace,
     file_editor_view,
 )
+from plugins.tools.finance.edgar import fetch_xbrl_concept, fetch_xbrl_metric
+from plugins.tools.finance.emit import emit_claim, emit_fact
 from plugins.tools.glob_search import glob_search
 from plugins.tools.grep_search import grep_search
 from plugins.tools.read_file import read_file
+from plugins.tools.read_text import read_text
 from plugins.tools.recover_result import recover_result
 from plugins.tools.run_python_code import run_python_code
 from plugins.tools.stop_subagent import stop_subagent
@@ -55,6 +58,16 @@ _BUILTIN_TOOLS: list[Tool] = [
     glob_search,
     run_python_code,
     recover_result,
+    # read_text is the host-local plain-text reader. It is what turns
+    # injected skill metadata into loadable content, so any role with
+    # enable_skills=True is inert without it.
+    read_text,
+    # Equity-research finance tools. Scoped by role permissions, so roles
+    # that do not name them never see them.
+    fetch_xbrl_metric,
+    fetch_xbrl_concept,
+    emit_fact,
+    emit_claim,
 ]
 
 
