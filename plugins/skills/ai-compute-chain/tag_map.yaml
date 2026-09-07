@@ -1,0 +1,54 @@
+# Semantic metric -> us-gaap tag, per company.
+#
+# This file is domain knowledge, not engineering configuration. Whether a
+# company's "capex" should include finance leases is an investment judgement
+# that changes as understanding improves, so it is reviewed alongside the
+# supply-chain notes rather than shipped through a code release.
+#
+# Every entry carries:
+#   cik          zero-padded SEC CIK, used to build the companyconcept URL
+#   concept      the us-gaap tag this company reports the metric under
+#   calibration  how the tag was confirmed to be the right one FOR THIS FILER
+#   regression   a known-good (calendar_period, value) pair
+#
+# `regression` is what catches silent drift: when a filer switches tags, the
+# lookup keeps succeeding against the wrong concept and the gate quietly starts
+# verifying the wrong number. A verifier that is broken without saying so is
+# worse than no verifier. The network-gated suite in
+# tests/network/test_tag_map_regression.py asserts these pairs against live
+# EDGAR; entries with `regression: null` are skipped.
+#
+# regression values are deliberately left null until each is read off an actual
+# filing. Seeding them with plausible-looking numbers would be exactly the
+# fabrication this system exists to prevent.
+
+metrics:
+  capex:
+    description: >-
+      Cash paid for property, plant and equipment in the period. Note that
+      several large filers report finance-lease additions separately; whether
+      those belong in "capex" for transmission purposes is a per-company call
+      and must be recorded in `calibration`.
+    companies:
+      META:
+        cik: "0001326801"
+        concept: PaymentsToAcquirePropertyPlantAndEquipment
+        calibration: >-
+          UNVERIFIED. Confirm against the cash-flow statement of a specific
+          10-Q before trusting: check whether principal payments on finance
+          leases are reported separately and decide whether they belong here.
+        regression: null
+      MSFT:
+        cik: "0000789019"
+        concept: PaymentsToAcquirePropertyPlantAndEquipment
+        calibration: >-
+          UNVERIFIED. Microsoft's fiscal year ends 30 June, so FY and CY
+          quarters never line up — check the fiscal/calendar split on any
+          cross-company comparison.
+        regression: null
+      GOOGL:
+        cik: "0001652044"
+        concept: PaymentsToAcquirePropertyPlantAndEquipment
+        calibration: >-
+          UNVERIFIED. Confirm against a specific 10-Q cash-flow statement.
+        regression: null
