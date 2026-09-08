@@ -18,7 +18,13 @@ from frontier_agent.core.runtime.loop.agent_loop import run_agent_loop
 from frontier_agent.core.runtime.registries import services as registry
 from frontier_agent.core.runtime.resources.manager import ResourceManager
 from frontier_agent.models.node_context import NodeContext
-from plugins.tools.finance.ledger import clear_ledger, ledger_claims, ledger_facts
+from plugins.tools.finance.ledger import (
+    clear_ledger,
+    ledger_claims,
+    ledger_facts,
+    reset_ledger_scope,
+    use_ledger_scope,
+)
 from workflows.equity_research.identity import ANALYST_ROLE_ID, MAIN_ROLE_ID
 from workflows.equity_research.prompts import (
     ANALYST_SYSTEM,
@@ -53,9 +59,15 @@ async def equity_research_node(
     resources = registry.get(ResourceManager)
     agent_cfg = (state.get("metadata") or {}).get("agent", {})
 
-    # The ledger is per-task, but a long-lived process reuses this module. Start
-    # clean so one run's facts can never be cited by the next — content-hash
-    # dedupe would happily join two unrelated runs' tables.
+    # Pin the ledger to this run for the whole node, so the tables the tools
+    # write from inside the loop are the tables read here after it returns.
+    # Without this the two resolve to different keys and every emit_fact
+    # succeeds into a table nobody reads.
+    scope_token = use_ledger_scope(ctx.task_id or "equity_research")
+
+    # A long-lived process reuses this module. Start clean so one run's facts
+    # can never be cited by the next — content-hash dedupe would happily join
+    # two unrelated runs' tables.
     clear_ledger()
 
     try:
@@ -112,7 +124,9 @@ async def equity_research_node(
             "analysis_stopped_by": getattr(analysis, "stopped_by", None),
         }
     finally:
+        # Clear while the scope is still pinned, then release it.
         clear_ledger()
+        reset_ledger_scope(scope_token)
 
 
 async def _run_phase(

@@ -333,3 +333,37 @@ async def test_a_quantified_claim_with_a_grounded_derivation_is_recorded() -> No
 
     assert recorded["status"] == "recorded"
     assert ledger_claims()[0]["impact"] == {"value": 300_000_000, "unit": "USD"}
+
+
+# ── Ledger scoping ────────────────────────────────────────────────────────
+
+
+async def test_facts_written_inside_a_loop_scope_are_readable_outside_it() -> None:
+    # Tools run inside the agent loop's execution scope; the node reads the
+    # ledger after the loop returns, with no ambient scope at all. If the key
+    # is derived from the ambient scope, those are two different ledgers and
+    # the node sees an empty table while every emit_fact logged success.
+    from frontier_agent.core.execution_context import (
+        build_execution_scope,
+        reset_current_execution_scope,
+        set_current_execution_scope,
+    )
+    from plugins.tools.finance.ledger import reset_ledger_scope, use_ledger_scope
+
+    run_token = use_ledger_scope("task-abc")
+    try:
+        scope = build_execution_scope(
+            task_id="task-abc", phase_id="harvest", role_id="equity_research_main",
+        )
+        scope_token = set_current_execution_scope(scope)
+        try:
+            recorded = json.loads(await emit_fact.ainvoke(_fact_args()))
+        finally:
+            reset_current_execution_scope(scope_token)
+
+        assert recorded["status"] == "recorded"
+        # Read the way the node does: after the loop, outside any scope.
+        assert [f["fact_id"] for f in ledger_facts()] == [recorded["fact_id"]]
+    finally:
+        clear_ledger()
+        reset_ledger_scope(run_token)

@@ -11,6 +11,7 @@ number exists once, is verified once, and has nowhere to drift to.
 
 from __future__ import annotations
 
+from contextvars import ContextVar, Token
 from typing import Any
 
 from frontier_agent.core.execution_context import get_current_execution_scope
@@ -23,6 +24,27 @@ Claim = dict[str, Any]
 
 _DEFAULT_KEY = "_default"
 
+# The run's ledger key, set explicitly by the node for the whole run.
+#
+# Deriving the key from the ambient execution scope alone does not work: tools
+# run inside the agent loop's scope, while the node reads the tables after the
+# loop returns, with no scope active. Those resolve to different keys, so every
+# emit_fact reports success and the node then reads an empty table. A run-scoped
+# ContextVar is inherited by everything the node awaits, so both sides agree.
+_LEDGER_SCOPE: ContextVar[str | None] = ContextVar(
+    "equity_research_ledger_scope", default=None,
+)
+
+
+def use_ledger_scope(key: str) -> Token[str | None]:
+    """Pin the ledger to one key for this run. Returns a token to reset with."""
+    return _LEDGER_SCOPE.set(key)
+
+
+def reset_ledger_scope(token: Token[str | None]) -> None:
+    """Restore the previous ledger scope."""
+    _LEDGER_SCOPE.reset(token)
+
 # task_id -> {fact_id: fact}
 _FACTS: dict[str, dict[str, Fact]] = {}
 # task_id -> [claim, ...]
@@ -30,7 +52,15 @@ _CLAIMS: dict[str, list[Claim]] = {}
 
 
 def ledger_key() -> str:
-    """Task-scoped ledger key; falls back outside a run (tests, REPL)."""
+    """The active ledger key.
+
+    An explicit run scope wins, so writes from inside a loop and reads from
+    outside one land in the same table. The ambient execution scope is the
+    fallback for tools invoked without a node around them.
+    """
+    explicit = _LEDGER_SCOPE.get()
+    if explicit:
+        return explicit
     scope = get_current_execution_scope()
     if scope is None:
         return _DEFAULT_KEY
