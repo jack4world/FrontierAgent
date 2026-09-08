@@ -1,0 +1,50 @@
+# Which listed companies stand behind each node of the chain.
+#
+# The edge table in SKILL.md names nodes; facts name companies. Without this
+# mapping nothing can check that a claim about a node actually cites evidence
+# about that node — and a live run duly produced a claim about HBM supply whose
+# entire evidence base was the accelerator vendor and the packaging foundry.
+#
+# `aliases` exist because the analyst writes edge names freehand. Anything that
+# normalises to one of them resolves to the node; anything that resolves to no
+# node is refused, so the chain graph is extended here deliberately rather than
+# invented mid-run.
+#
+# STRUCTURAL KNOWLEDGE ONLY — no figures. See the header of tag_map.yaml for
+# why a number in a file the agent reads becomes a number it reports.
+
+nodes:
+  csp_capex:
+    aliases: [hyperscaler_capex, cloud_capex, csp, hyperscalers]
+    entities: [META, MSFT, GOOGL, GOOG, AMZN, ORCL]
+
+  accelerators:
+    aliases: [nvda, nvda_revenue, gpu, accelerator_demand, compute]
+    entities: [NVDA, AMD, AVGO]
+
+  advanced_packaging:
+    aliases:
+      [tsmc_advanced_packaging, tsm_cowos_capacity, cowos, packaging,
+       tsmc_cowos, advanced_packaging_capacity]
+    entities: [TSM, TSMC]
+
+  hbm:
+    aliases:
+      [hbm_supply, hbm_suppliers, hbm_volume, hbm_pricing, memory,
+       hbm_capacity, dram]
+    # SK Hynix and Samsung file in Korea and are unreachable by the XBRL gate;
+    # they belong to the node regardless, because a claim citing them is still
+    # better evidenced than one citing neither.
+    entities: [MU, SKHYNIX, SK_HYNIX, SAMSUNG, HYNIX]
+
+  optical_modules:
+    aliases: [optics, datacom_optics, transceivers, optical]
+    entities: [COHR, LITE, INNOLIGHT, EOPT]
+
+  thermal:
+    aliases: [liquid_cooling, cooling]
+    entities: [VRT, SMCI]
+
+  power:
+    aliases: [power_delivery, facility_power]
+    entities: [VRT, ETN, PWR]

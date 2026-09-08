@@ -91,7 +91,7 @@ async def test_disagreeing_values_for_one_identity_surface_as_a_conflict() -> No
 def _claim_args(**overrides: Any) -> dict[str, Any]:
     args: dict[str, Any] = {
         "edge_from": "csp_capex",
-        "edge_to": "optical_modules",
+        "edge_to": "advanced_packaging",
         "statement": "Raised CSP capex pulls forward 800G module orders.",
         "depends_on": [],
         "falsification": "No sequential growth in Q1 datacom revenue.",
@@ -173,7 +173,7 @@ async def test_a_directional_claim_needs_no_derivation() -> None:
     claim = ledger_claims()[0]
     assert claim["claim_id"] == recorded["claim_id"]
     assert claim["depends_on"] == [fact_id, upstream]
-    assert claim["edge"] == {"from": "csp_capex", "to": "optical_modules"}
+    assert claim["edge"] == {"from": "csp_capex", "to": "advanced_packaging"}
     assert claim["impact"] is None
 
 
@@ -476,7 +476,8 @@ async def test_a_transmission_claim_built_only_from_the_driver_is_rejected() -> 
     )))
 
     assert rejected["status"] == "rejected"
-    assert "one entity" in rejected["error"] or "entity" in rejected["error"]
+    # META is a csp_capex company, so the packaging node has no evidence at all.
+    assert "advanced_packaging" in rejected["error"]
 
 
 async def test_a_claim_citing_both_ends_of_the_edge_is_recorded() -> None:
@@ -486,6 +487,48 @@ async def test_a_claim_citing_both_ends_of_the_edge_is_recorded() -> None:
     recorded = json.loads(await emit_claim.ainvoke(_claim_args(
         edge_from="nvda", edge_to="tsmc_advanced_packaging",
         depends_on=[driver, upstream], counter_evidence=[upstream],
+    )))
+
+    assert recorded["status"] == "recorded"
+
+
+async def test_a_claim_about_hbm_evidenced_by_nvidia_and_tsmc_is_rejected() -> None:
+    # The exact shape the live run produced and the entity-count gate let
+    # through: two distinct entities cited, neither of them a memory supplier,
+    # and the claim is about HBM supply.
+    driver = await _emit_supporting_fact()          # META
+    packaging = await _emit_upstream_fact()         # TSM
+
+    rejected = json.loads(await emit_claim.ainvoke(_claim_args(
+        edge_from="nvda_revenue", edge_to="hbm_supply",
+        depends_on=[driver, packaging], counter_evidence=[packaging],
+    )))
+
+    assert rejected["status"] == "rejected"
+    assert "hbm" in rejected["error"].lower()
+
+
+async def test_a_claim_about_an_undefined_node_is_rejected() -> None:
+    # Otherwise the downstream check is evaded by inventing a node name.
+    driver = await _emit_supporting_fact()
+    packaging = await _emit_upstream_fact()
+
+    rejected = json.loads(await emit_claim.ainvoke(_claim_args(
+        edge_from="nvda_revenue", edge_to="quantum_interconnect",
+        depends_on=[driver, packaging], counter_evidence=[packaging],
+    )))
+
+    assert rejected["status"] == "rejected"
+    assert "quantum_interconnect" in rejected["error"]
+
+
+async def test_a_claim_citing_the_downstream_node_is_recorded() -> None:
+    driver = await _emit_supporting_fact()
+    packaging = await _emit_upstream_fact()         # TSM = advanced_packaging
+
+    recorded = json.loads(await emit_claim.ainvoke(_claim_args(
+        edge_from="nvda_revenue", edge_to="tsm_cowos_capacity",
+        depends_on=[driver, packaging], counter_evidence=[packaging],
     )))
 
     assert recorded["status"] == "recorded"

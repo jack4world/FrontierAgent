@@ -17,6 +17,11 @@ import logging
 import re
 
 from frontier_agent.core.tool import tool
+from plugins.tools.finance.chain import (
+    entities_for_node,
+    known_node_names,
+    resolve_node,
+)
 from plugins.tools.finance.ledger import (
     known_fact_ids,
     ledger_claims,
@@ -211,7 +216,10 @@ async def emit_claim(
 
     Args:
         edge_from: Upstream node of the supply-chain edge (``csp_capex``).
-        edge_to: Downstream node (``optical_modules``).
+        edge_to: Downstream node (``optical_modules``). Must be a node of the
+            defined chain, and at least one cited fact must be about a company
+            belonging to it — a claim about memory supply has to rest on a
+            memory supplier's numbers, not on its customers'.
         statement: The claim in prose. Refer to figures by what they are, not
             by repeating the digits — the digits live in the facts table.
         depends_on: ``fact_id`` values this claim rests on. Every id must have
@@ -267,9 +275,32 @@ async def emit_claim(
     # happened: nine claims about packaging and memory suppliers, sourced
     # wholly from the accelerator vendor's income statement.
     entities = {
-        (facts_by_id.get(ref) or {}).get("entity")
+        str((facts_by_id.get(ref) or {}).get("entity") or "").upper()
         for ref in refs
-    } - {None}
+    } - {""}
+
+    # The downstream node must actually be represented in the evidence.
+    # Counting distinct entities is not enough: the live run produced a claim
+    # about HBM supply citing the accelerator vendor and the packaging foundry,
+    # two entities, neither of them a memory supplier.
+    node = resolve_node(edge_to)
+    if node is None:
+        return _rejected(
+            f"unknown node {edge_to!r}. Claims are about edges of the defined "
+            f"chain; known nodes are {known_node_names()}. If this link is real "
+            "and missing, it gets added to nodes.yaml deliberately — not "
+            "invented mid-run, where nothing can check it."
+        )
+    node_entities = entities_for_node(node)
+    if node_entities and not (entities & node_entities):
+        return _rejected(
+            f"no cited fact is about {node} (any of {sorted(node_entities)}); "
+            f"the facts cited are about {sorted(entities)}. A claim about a "
+            "node has to rest on evidence about that node. If the harvest "
+            "found none, say so in your summary — that is a real finding, and "
+            "a better one than a conclusion inferred from its neighbours."
+        )
+
     if refs and len(entities) < 2:
         only = next(iter(entities), "?")
         return _rejected(
