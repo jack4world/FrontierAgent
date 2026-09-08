@@ -36,6 +36,7 @@ class Verdict(Enum):
     UNVERIFIED = "unverified"
     UNRESOLVED = "unresolved"
     UNKNOWN_TIER = "unknown_tier"
+    SOURCE_UNREACHABLE = "source_unreachable"
 
 
 @dataclass(frozen=True)
@@ -55,6 +56,10 @@ class VerificationResult:
     facts: list[Fact] = field(default_factory=list)
     claims: list[Claim] = field(default_factory=list)
     findings: list[Finding] = field(default_factory=list)
+    # Facts the gate removed, kept whole. A fabricated quotation and a real
+    # number filed against the wrong URL both end up here, and they are not
+    # remotely the same problem — the reader needs the body to tell them apart.
+    removed: list[Fact] = field(default_factory=list)
 
 
 def verify(
@@ -66,6 +71,7 @@ def verify(
 ) -> VerificationResult:
     """Run every fact through the gate for its source tier."""
     out_facts: list[Fact] = []
+    removed: list[Fact] = []
     findings: list[Finding] = []
 
     for fact in facts:
@@ -91,12 +97,14 @@ def verify(
         findings.append(finding)
         if checked is not None:
             out_facts.append(checked)
+        else:
+            removed.append(fact)
 
     survivors = {fact["fact_id"] for fact in out_facts}
     out_claims = [_mark_unsupported(claim, survivors) for claim in claims]
 
     return VerificationResult(
-        facts=out_facts, claims=out_claims, findings=findings,
+        facts=out_facts, claims=out_claims, findings=findings, removed=removed,
     )
 
 
@@ -131,6 +139,13 @@ def _check_quote(fact: Fact, source_text: SourceText) -> tuple[Fact | None, Find
     """
     verbatim = (fact.get("source") or {}).get("verbatim") or ""
     body = source_text(fact)
+
+    if not body:
+        # The fetch failed. That says nothing about the quotation, and deleting
+        # on it would let a 403 from an IR site read as a fabrication.
+        return fact, Finding(
+            fact_id=fact["fact_id"], verdict=Verdict.SOURCE_UNREACHABLE,
+        )
 
     if verbatim and _normalize(verbatim) in _normalize(body):
         return fact, Finding(fact_id=fact["fact_id"], verdict=Verdict.QUOTE_CONFIRMED)

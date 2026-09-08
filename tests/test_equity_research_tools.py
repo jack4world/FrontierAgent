@@ -367,3 +367,79 @@ async def test_facts_written_inside_a_loop_scope_are_readable_outside_it() -> No
     finally:
         clear_ledger()
         reset_ledger_scope(run_token)
+
+
+# ── Consensus: what the market already thinks ─────────────────────────────
+
+
+async def test_a_fact_records_whether_it_is_an_actual_a_guide_or_an_expectation() -> None:
+    # Tier says how verifiable a number is. Basis says what kind of number it
+    # is. A street estimate can be perfectly well sourced and still be nobody's
+    # observation of anything — conflating the two hides that.
+    recorded = json.loads(await emit_fact.ainvoke(_fact_args(
+        metric="revenue_estimate", basis="consensus", tier="secondary",
+        source_url="https://example-broker.test/nvda", concept="", accession="",
+    )))
+
+    assert recorded["status"] == "recorded"
+    assert ledger_facts()[0]["basis"] == "consensus"
+
+
+async def test_an_unknown_basis_is_rejected() -> None:
+    rejected = json.loads(await emit_fact.ainvoke(_fact_args(basis="vibes")))
+
+    assert rejected["status"] == "rejected"
+    assert "basis" in rejected["error"]
+
+
+async def _emit_consensus_fact() -> str:
+    return json.loads(await emit_fact.ainvoke(_fact_args(
+        metric="revenue_estimate", basis="consensus", tier="secondary",
+        source_url="https://example-broker.test/nvda", concept="", accession="",
+    )))["fact_id"]
+
+
+async def test_citing_consensus_without_saying_how_you_differ_is_rejected() -> None:
+    # Naming what the market thinks and then not saying how your view departs
+    # from it is the shape of a report that quietly agrees while sounding
+    # independent.
+    support = await _emit_supporting_fact()
+    consensus = await _emit_consensus_fact()
+
+    rejected = json.loads(await emit_claim.ainvoke(_claim_args(
+        depends_on=[support], counter_evidence=[support],
+        consensus_refs=[consensus], consensus_delta="  ",
+    )))
+
+    assert rejected["status"] == "rejected"
+    assert "consensus_delta" in rejected["error"]
+
+
+async def test_a_reported_actual_cannot_be_passed_off_as_the_consensus() -> None:
+    # Otherwise "differs from consensus" can be manufactured by pointing at any
+    # convenient number and calling it the market's view.
+    support = await _emit_supporting_fact()
+
+    rejected = json.loads(await emit_claim.ainvoke(_claim_args(
+        depends_on=[support], counter_evidence=[support],
+        consensus_refs=[support], consensus_delta="we are above the street",
+    )))
+
+    assert rejected["status"] == "rejected"
+    assert "basis" in rejected["error"]
+
+
+async def test_a_claim_records_how_it_departs_from_the_market_view() -> None:
+    support = await _emit_supporting_fact()
+    consensus = await _emit_consensus_fact()
+
+    recorded = json.loads(await emit_claim.ainvoke(_claim_args(
+        depends_on=[support], counter_evidence=[support],
+        consensus_refs=[consensus],
+        consensus_delta="Street assumes packaging is not the binding constraint.",
+    )))
+
+    assert recorded["status"] == "recorded"
+    claim = ledger_claims()[0]
+    assert claim["consensus_refs"] == [consensus]
+    assert claim["consensus_delta"].startswith("Street assumes")

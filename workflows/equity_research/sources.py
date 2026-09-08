@@ -141,19 +141,91 @@ def render_facts_block(facts: list[Fact]) -> str:
     lines = []
     for fact in facts:
         period = (fact.get("period") or {}).get("calendar") or ""
+        # basis is shown alongside tier because the analyst has to be able to
+        # pick the consensus figures out of the table to cite them; without it
+        # a market expectation is indistinguishable from a measurement.
         lines.append(
             f"- `{fact['fact_id']}` — {fact.get('entity')} {fact.get('metric')} "
             f"{period}: {fact.get('value')} {fact.get('unit')} "
-            f"[tier={fact.get('tier')}]"
+            f"[tier={fact.get('tier')}, basis={fact.get('basis', 'reported')}]"
         )
     return "\n".join(lines)
 
 
+def render_removed_block(removed: list[Fact]) -> str:
+    """What the gate threw out, with enough detail to diagnose why.
+
+    A removed fact is either a fabricated quotation or a real figure filed
+    against the wrong source. The fact_id alone cannot tell those apart, and
+    the difference decides whether you distrust the model or fix a URL.
+    """
+    if not removed:
+        return "_(nothing removed)_"
+    lines = []
+    for fact in removed:
+        source = fact.get("source") or {}
+        lines.append(
+            f"- `{fact['fact_id']}` — {fact.get('entity')} {fact.get('metric')} "
+            f"= {fact.get('value')} {fact.get('unit')}"
+        )
+        lines.append(f"  - claimed source: {source.get('url') or '—'}")
+        if source.get("verbatim"):
+            lines.append(f"  - quote not found in that document: \"{source['verbatim']}\"")
+    return "\n".join(lines)
+
+
+_VERIFIED_VERDICTS = frozenset({"match", "quote_confirmed"})
+
+
+def score_claim(claim: Any, findings: list[Any]) -> tuple[str, str]:
+    """Return (evidence strength, distance from the market view).
+
+    The two axes are deliberately not combined into one number. A claim that is
+    well evidenced and says what everyone already says is sound and worthless;
+    one that departs from the market on unverified figures is a bet wearing a
+    report's clothes. Collapsing them to a single score hides which of those
+    you are holding.
+    """
+    verdicts = {f.fact_id: f.verdict.value for f in findings}
+    supports = claim.get("depends_on", []) or []
+    verified = sum(1 for ref in supports if verdicts.get(ref) in _VERIFIED_VERDICTS)
+    evidence = f"{verified}/{len(supports)} verified" if supports else "no support"
+
+    if claim.get("consensus_refs") and claim.get("consensus_delta"):
+        stance = "stated"
+    elif claim.get("consensus_refs"):
+        stance = "cited, not stated"
+    else:
+        stance = "unknown — no market view cited"
+    return evidence, stance
+
+
 def render_report(
-    question: str, facts: list[Any], claims: list[Any], findings: list[Any],
+    question: str,
+    facts: list[Any],
+    claims: list[Any],
+    findings: list[Any],
+    removed: list[Fact] | None = None,
 ) -> str:
     """Assemble the deliverable: claims first, then what the gate did."""
     out = [f"# Supply-chain transmission analysis\n\n**Question:** {question}\n"]
+
+    if claims:
+        out.append("## At a glance\n")
+        out.append("| claim | edge | evidence | vs. market |")
+        out.append("|---|---|---|---|")
+        for claim in claims:
+            edge = claim.get("edge", {})
+            evidence, stance = score_claim(claim, findings)
+            out.append(
+                f"| `{claim.get('claim_id')}` | {edge.get('from')} → {edge.get('to')} "
+                f"| {evidence} | {stance} |"
+            )
+        out.append(
+            "\n_Well-evidenced and identical to the market view is sound and "
+            "adds nothing; departing from it on unverified figures is a bet. "
+            "The pairing is the point._\n"
+        )
 
     out.append("## Claims\n")
     if not claims:
@@ -170,6 +242,9 @@ def render_report(
             out.append(f"- **Lag:** {claim['lag']['quarters']} quarters")
         out.append(f"- **Falsified if:** {claim.get('falsification', '')}")
         out.append(f"- **Counter-evidence:** {', '.join(claim.get('counter_evidence', [])) or '—'}")
+        if claim.get("consensus_delta"):
+            out.append(f"- **Vs. market view:** {claim['consensus_delta']}")
+            out.append(f"  - market figures cited: {', '.join(claim.get('consensus_refs', []))}")
         if claim.get("unsupported_by"):
             out.append(
                 f"- ⚠️ **Rests on facts the gate removed:** "
@@ -184,6 +259,9 @@ def render_report(
         rep = f"{finding.reported_value:,}" if finding.reported_value is not None else "—"
         auth = f"{finding.authoritative_value:,}" if finding.authoritative_value is not None else "—"
         out.append(f"| `{finding.fact_id}` | {finding.verdict.value} | {rep} | {auth} |")
+
+    out.append("\n## Removed by the gate\n")
+    out.append(render_removed_block(removed or []))
 
     out.append("\n## Facts\n")
     out.append(render_facts_block(facts))

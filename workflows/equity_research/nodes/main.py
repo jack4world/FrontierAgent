@@ -105,12 +105,15 @@ async def equity_research_node(
             len(facts), len(result.facts), verdicts,
         )
 
-        report = render_report(question, result.facts, result.claims, result.findings)
+        report = render_report(
+            question, result.facts, result.claims, result.findings, result.removed,
+        )
         return {
             "final_answer": report,
             "final_content": report,
             "equity_research_facts": result.facts,
             "equity_research_claims": result.claims,
+            "equity_research_removed": result.removed,
             "equity_research_findings": [
                 {
                     "fact_id": f.fact_id,

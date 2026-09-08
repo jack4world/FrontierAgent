@@ -35,6 +35,15 @@ Choosing the tier, which decides how the number gets verified:
   such in the report. Use it when nothing better exists, not when something
   better exists and is harder to find.
 
+Also record what the market already expects — street estimates, published
+forecasts, consensus figures — with `basis="consensus"`. These are usually
+`secondary` tier and that is fine; they are not observations and are not
+supposed to be. Nothing else in this system knows what is already expected, and
+a conclusion cannot be judged as informative without it.
+
+Use `basis` on every fact: `reported` for something that happened, `guidance`
+for the company's own forward statement, `consensus` for what the market thinks.
+
 Two traps worth the extra minute:
 
 - Fiscal and calendar quarters are not the same thing for anyone whose year does
@@ -74,6 +83,12 @@ Rules that are enforced — `emit_claim` will reject you otherwise:
   the fact_id it consumes. If you cannot show the arithmetic, **leave the number
   out and state direction only**. That is an accepted, honest answer. A number
   with no path behind it reads as precision you have not earned.
+
+- Where the facts include consensus figures, cite them in `consensus_refs`
+  and say in `consensus_delta` how your view departs from them. "We agree with
+  the street, and here is why that is still worth stating" is a perfectly good
+  answer. Silence is not: naming what the market thinks and then not saying how
+  you differ is how a report agrees with everyone while sounding independent.
 
 What a good answer looks like: it identifies the quarters or conditions in which
 this edge did *not* transmit, and says what would have to be true for this time

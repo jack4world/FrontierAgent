@@ -44,33 +44,73 @@ metrics:
           calendar_period: CY2026Q2
           value: 96221000000
           source: "10-Q accession 0001045810-26-000075, period ended 2026-07-26"
+      MU:
+        cik: "0000723125"
+        concept: RevenueFromContractWithCustomerExcludingAssessedTax
+        calibration: >-
+          VERIFIED 2026-09-08. Micron uses the tag NVIDIA abandoned, and NVIDIA
+          uses the one Micron never adopted — `Revenues` on MU is stale since
+          CY2018Q3. Two large filers on this chain reporting the same concept
+          under opposite tags is why this mapping is per-company and not a
+          default with exceptions. Fiscal year ends around end-August, so
+          CY2026Q2 is FY2026Q3 — a different offset again from NVDA's January
+          year-end.
+        regression:
+          calendar_period: CY2026Q2
+          value: 41456000000
+          source: "companyconcept frame CY2026Q2 / FY2026Q3"
 
   capex:
     description: >-
-      Cash paid for property, plant and equipment in the period. Note that
-      several large filers report finance-lease additions separately; whether
-      those belong in "capex" for transmission purposes is a per-company call
-      and must be recorded in `calibration`.
+      Cash paid for property, plant and equipment in the period. Several large
+      filers report finance-lease additions separately; whether those belong in
+      "capex" for transmission purposes is a per-company call and is recorded in
+      each `calibration`.
     companies:
       META:
         cik: "0001326801"
         concept: PaymentsToAcquirePropertyPlantAndEquipment
         calibration: >-
-          UNVERIFIED. Confirm against the cash-flow statement of a specific
-          10-Q before trusting: check whether principal payments on finance
-          leases are reported separately and decide whether they belong here.
-        regression: null
+          VERIFIED 2026-09-08 against companyconcept frames; 15 quarterly frames
+          available, calendar and fiscal quarters aligned (December year-end).
+          NOT yet checked against the cash-flow statement for whether principal
+          payments on finance leases are reported separately — do that before
+          using this for a level comparison rather than a growth rate.
+        regression:
+          calendar_period: CY2026Q1
+          value: 18997000000
+          source: "companyconcept frame CY2026Q1 / FY2026Q1"
       MSFT:
         cik: "0000789019"
         concept: PaymentsToAcquirePropertyPlantAndEquipment
         calibration: >-
-          UNVERIFIED. Microsoft's fiscal year ends 30 June, so FY and CY
-          quarters never line up — check the fiscal/calendar split on any
-          cross-company comparison.
-        regression: null
+          VERIFIED 2026-09-08; 54 quarterly frames. Fiscal year ends 30 June, so
+          CY2026Q1 is FY2026Q3. Comparing "Q1" across this filer and a December
+          year-end filer without reading both labels lines up quarters that are
+          not the same three months.
+        regression:
+          calendar_period: CY2026Q1
+          value: 30876000000
+          source: "companyconcept frame CY2026Q1 / FY2026Q3"
       GOOGL:
         cik: "0001652044"
         concept: PaymentsToAcquirePropertyPlantAndEquipment
         calibration: >-
-          UNVERIFIED. Confirm against a specific 10-Q cash-flow statement.
-        regression: null
+          VERIFIED 2026-09-08; 24 quarterly frames, calendar and fiscal quarters
+          aligned (December year-end).
+        regression:
+          calendar_period: CY2026Q1
+          value: 35674000000
+          source: "companyconcept frame CY2026Q1 / FY2026Q1"
+      MU:
+        cik: "0000723125"
+        concept: PaymentsToAcquirePropertyPlantAndEquipment
+        calibration: >-
+          VERIFIED 2026-09-08; 18 quarterly frames. Micron is the only HBM
+          supplier that files with the SEC, so it is the sole memory node this
+          gate can hard-verify at all — SK Hynix and Samsung file in Korea and
+          are unreachable here by construction.
+        regression:
+          calendar_period: CY2025Q4
+          value: 5389000000
+          source: "companyconcept frame CY2025Q4 / FY2026Q1"

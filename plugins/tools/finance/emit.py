@@ -20,6 +20,7 @@ from frontier_agent.core.tool import tool
 from plugins.tools.finance.ledger import (
     known_fact_ids,
     ledger_claims,
+    ledger_facts,
     record_claim,
     record_fact,
 )
@@ -27,6 +28,12 @@ from plugins.tools.finance.ledger import (
 logger = logging.getLogger(__name__)
 
 TIERS = ("xbrl_verified", "quoted_primary", "secondary")
+
+# What kind of number this is, orthogonal to how verifiable it is. A street
+# estimate can be impeccably sourced and still be nobody's observation of
+# anything; keeping basis separate from tier is what stops a well-sourced
+# expectation from reading as a measurement.
+BASES = ("reported", "guidance", "consensus")
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
 # fact ids are minted by build_fact_id, so this is the shape a derivation
@@ -77,6 +84,7 @@ async def emit_fact(
     accession: str = "",
     concept: str = "",
     verbatim: str = "",
+    basis: str = "reported",
 ) -> str:
     """Record one number in the facts table. Emit every number you rely on.
 
@@ -105,12 +113,21 @@ async def emit_fact(
             ``quoted_primary``** — the gate re-fetches the source and checks
             this string appears in it, which is what makes an invented
             quotation impossible to pass off.
+        basis: What kind of number this is. ``reported`` for something that
+            happened, ``guidance`` for the company's own forward statement,
+            ``consensus`` for what the market expects (street estimates,
+            published forecasts). Record consensus figures whenever you find
+            them: a view is only differentiated relative to what is already
+            expected, and nothing else in this system knows what that is.
 
     Returns:
         JSON with the assigned ``fact_id``, or a rejection explaining what to fix.
     """
     if tier not in TIERS:
         return _rejected(f"tier must be one of {list(TIERS)}; got {tier!r}")
+
+    if basis not in BASES:
+        return _rejected(f"basis must be one of {list(BASES)}; got {basis!r}")
 
     if tier == "quoted_primary" and not (verbatim or "").strip():
         return _rejected(
@@ -135,6 +152,7 @@ async def emit_fact(
         "unit": unit,
         "period": {"fiscal": fiscal_period, "calendar": calendar_period},
         "tier": tier,
+        "basis": basis,
         "source": {
             "url": source_url,
             "accession": accession or None,
@@ -186,6 +204,8 @@ async def emit_claim(
     impact_value: float | None = None,
     impact_unit: str = "",
     derivation: list[str] | None = None,
+    consensus_refs: list[str] | None = None,
+    consensus_delta: str = "",
 ) -> str:
     """Record one transmission claim. Cite facts by id; never restate a number.
 
@@ -208,6 +228,13 @@ async def emit_claim(
         impact_value: Quantified downstream impact. Optional — and only allowed
             alongside ``derivation``.
         impact_unit: Unit for ``impact_value``.
+        consensus_refs: ``fact_id`` values whose ``basis`` is ``consensus`` —
+            what the market already expects on this edge.
+        consensus_delta: How your view departs from those expectations. Required
+            whenever ``consensus_refs`` is given. Naming what the market thinks
+            and then not saying how you differ is how a report agrees with
+            everyone while sounding independent. "We agree with the street" is
+            an acceptable answer; saying nothing is not.
         derivation: The arithmetic, one step per entry. **Every step must
             contain at least one ``fact_id``**, or the step is rejected — a step
             without one cannot be re-checked. Required whenever ``impact_value``
@@ -225,6 +252,7 @@ async def emit_claim(
             )
 
     refs = list(depends_on or [])
+    facts_by_id = {f["fact_id"]: f for f in ledger_facts()}
     known = known_fact_ids()
     unknown = [ref for ref in refs if ref not in known]
     if unknown:
@@ -249,6 +277,30 @@ async def emit_claim(
             "Counter-evidence is held to the same standard as support: emit "
             "the sourced fact first, then cite it."
         )
+
+    market = list(consensus_refs or [])
+    if market:
+        if not (consensus_delta or "").strip():
+            return _rejected(
+                "`consensus_delta` is required whenever you cite "
+                "`consensus_refs`: say how your view departs from what the "
+                "market already expects. Agreeing is a valid answer; silence "
+                "is not."
+            )
+        unknown_market = [ref for ref in market if ref not in known]
+        if unknown_market:
+            return _rejected(f"unknown consensus fact_id(s): {unknown_market}.")
+        mislabelled = [
+            ref for ref in market
+            if (facts_by_id.get(ref) or {}).get("basis") != "consensus"
+        ]
+        if mislabelled:
+            return _rejected(
+                f"these fact_id(s) are not consensus figures: {mislabelled}. "
+                "Their `basis` must be 'consensus'. Otherwise any convenient "
+                "number can be relabelled as the market's view and a claim can "
+                "manufacture its own differentiation."
+            )
 
     steps = list(derivation or [])
     if impact_value is not None and not steps:
@@ -280,6 +332,8 @@ async def emit_claim(
         "lag": {"quarters": lag_quarters, "basis": refs[0] if refs else None},
         "falsification": falsification.strip(),
         "counter_evidence": against,
+        "consensus_refs": market,
+        "consensus_delta": (consensus_delta or "").strip(),
     }
 
     record_claim(claim)

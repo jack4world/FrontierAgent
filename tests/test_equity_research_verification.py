@@ -221,3 +221,43 @@ def test_a_fact_with_an_unrecognised_tier_is_not_silently_hard_gated() -> None:
 
     assert result.facts[0]["value"] == 37_400_000_000
     assert result.findings[0].verdict is Verdict.UNKNOWN_TIER
+
+
+def test_an_unreachable_source_is_flagged_not_treated_as_fabrication() -> None:
+    # An empty body means the fetch failed, not that the sentence was invented.
+    # Deleting on it would destroy a possibly-true fact for an infrastructure
+    # reason — a 403 from an IR site would read as a lie.
+    quoted = _guidance_fact()
+
+    result = verify(
+        [quoted],
+        [],
+        xbrl_lookup=lambda _fact: None,
+        source_text=lambda _fact: "",
+    )
+
+    assert [f["fact_id"] for f in result.facts] == ["f-meta-capex-guidance-2026-b7c1"]
+    assert result.findings[0].verdict is Verdict.SOURCE_UNREACHABLE
+
+
+def test_removed_facts_are_kept_so_a_lie_can_be_told_from_a_typo() -> None:
+    # The report needs to show what was removed and what it cited. Without the
+    # body of the removed fact, a fabricated quotation and a real number filed
+    # against the wrong URL are indistinguishable in the output — and they are
+    # not remotely the same problem.
+    fabricated = _guidance_fact()
+    press_release = "We expect 2026 capital expenditures in the range of $40-45 billion."
+
+    result = verify(
+        [fabricated],
+        [],
+        xbrl_lookup=lambda _fact: None,
+        source_text=lambda _fact: press_release,
+    )
+
+    assert result.facts == []
+    assert len(result.removed) == 1
+    removed = result.removed[0]
+    assert removed["fact_id"] == "f-meta-capex-guidance-2026-b7c1"
+    assert removed["source"]["verbatim"] == "2026 capital expenditures of $38 billion"
+    assert removed["source"]["url"].startswith("https://")
