@@ -105,6 +105,11 @@ async def _emit_supporting_fact() -> str:
     return json.loads(await emit_fact.ainvoke(_fact_args()))["fact_id"]
 
 
+async def _both_ends() -> tuple[str, str]:
+    """A driver fact and an upstream fact — the minimum a claim may rest on."""
+    return await _emit_supporting_fact(), await _emit_upstream_fact()
+
+
 async def test_a_claim_citing_an_unknown_fact_is_rejected() -> None:
     # Ids are minted by the ledger, so an id it has never issued is one the
     # model invented — the exact move the two-table split exists to block.
@@ -136,12 +141,12 @@ async def test_a_quantified_claim_without_a_derivation_path_is_rejected() -> Non
     # Naming a number is cheap and the model will happily do it. Requiring the
     # arithmetic is what stops false precision: the figure is only allowed when
     # each step is attached to a fact the gate can re-check.
-    fact_id = await _emit_supporting_fact()
+    fact_id, upstream = await _both_ends()
 
     rejected = json.loads(
         await emit_claim.ainvoke(
             _claim_args(
-                depends_on=[fact_id],
+                depends_on=[fact_id, upstream],
                 counter_evidence=[fact_id],
                 impact_value=300_000_000,
                 impact_unit="USD",
@@ -156,18 +161,18 @@ async def test_a_quantified_claim_without_a_derivation_path_is_rejected() -> Non
 
 async def test_a_directional_claim_needs_no_derivation() -> None:
     # The honest downgrade: no number, no path required.
-    fact_id = await _emit_supporting_fact()
+    fact_id, upstream = await _both_ends()
 
     recorded = json.loads(
         await emit_claim.ainvoke(
-            _claim_args(depends_on=[fact_id], counter_evidence=[fact_id])
+            _claim_args(depends_on=[fact_id, upstream], counter_evidence=[fact_id])
         )
     )
 
     assert recorded["status"] == "recorded"
     claim = ledger_claims()[0]
     assert claim["claim_id"] == recorded["claim_id"]
-    assert claim["depends_on"] == [fact_id]
+    assert claim["depends_on"] == [fact_id, upstream]
     assert claim["edge"] == {"from": "csp_capex", "to": "optical_modules"}
     assert claim["impact"] is None
 
@@ -267,11 +272,11 @@ async def test_a_claim_without_counter_evidence_is_rejected() -> None:
     # each arguing their own link produces a report that agrees with itself
     # and has checked nothing. Enforcing falsification while leaving this
     # optional would drop half the guard.
-    fact_id = await _emit_supporting_fact()
+    fact_id, upstream = await _both_ends()
 
     rejected = json.loads(
         await emit_claim.ainvoke(
-            _claim_args(depends_on=[fact_id], counter_evidence=[])
+            _claim_args(depends_on=[fact_id, upstream], counter_evidence=[])
         )
     )
 
@@ -283,11 +288,12 @@ async def test_counter_evidence_must_cite_real_facts() -> None:
     # Requiring counter-evidence would invite inventing it, so the ids are
     # checked the same way supports are: the analyst has to emit a sourced
     # fact before it can point at one.
-    fact_id = await _emit_supporting_fact()
+    fact_id, upstream = await _both_ends()
 
     rejected = json.loads(
         await emit_claim.ainvoke(
-            _claim_args(depends_on=[fact_id], counter_evidence=["f-invented-0000"])
+            _claim_args(depends_on=[fact_id, upstream],
+                        counter_evidence=["f-invented-0000"])
         )
     )
 
@@ -298,12 +304,12 @@ async def test_counter_evidence_must_cite_real_facts() -> None:
 async def test_a_derivation_step_that_cites_no_fact_is_rejected() -> None:
     # "Each step names the fact_id it consumes" is what makes the arithmetic
     # re-checkable. A step of prose is a number with extra words around it.
-    fact_id = await _emit_supporting_fact()
+    fact_id, upstream = await _both_ends()
 
     rejected = json.loads(
         await emit_claim.ainvoke(
             _claim_args(
-                depends_on=[fact_id],
+                depends_on=[fact_id, upstream],
                 counter_evidence=[fact_id],
                 impact_value=300_000_000,
                 impact_unit="USD",
@@ -317,12 +323,12 @@ async def test_a_derivation_step_that_cites_no_fact_is_rejected() -> None:
 
 
 async def test_a_quantified_claim_with_a_grounded_derivation_is_recorded() -> None:
-    fact_id = await _emit_supporting_fact()
+    fact_id, upstream = await _both_ends()
 
     recorded = json.loads(
         await emit_claim.ainvoke(
             _claim_args(
-                depends_on=[fact_id],
+                depends_on=[fact_id, upstream],
                 counter_evidence=[fact_id],
                 impact_value=300_000_000,
                 impact_unit="USD",
@@ -403,11 +409,11 @@ async def test_citing_consensus_without_saying_how_you_differ_is_rejected() -> N
     # Naming what the market thinks and then not saying how your view departs
     # from it is the shape of a report that quietly agrees while sounding
     # independent.
-    support = await _emit_supporting_fact()
+    support, upstream = await _both_ends()
     consensus = await _emit_consensus_fact()
 
     rejected = json.loads(await emit_claim.ainvoke(_claim_args(
-        depends_on=[support], counter_evidence=[support],
+        depends_on=[support, upstream], counter_evidence=[support],
         consensus_refs=[consensus], consensus_delta="  ",
     )))
 
@@ -418,10 +424,10 @@ async def test_citing_consensus_without_saying_how_you_differ_is_rejected() -> N
 async def test_a_reported_actual_cannot_be_passed_off_as_the_consensus() -> None:
     # Otherwise "differs from consensus" can be manufactured by pointing at any
     # convenient number and calling it the market's view.
-    support = await _emit_supporting_fact()
+    support, upstream = await _both_ends()
 
     rejected = json.loads(await emit_claim.ainvoke(_claim_args(
-        depends_on=[support], counter_evidence=[support],
+        depends_on=[support, upstream], counter_evidence=[support],
         consensus_refs=[support], consensus_delta="we are above the street",
     )))
 
@@ -430,11 +436,11 @@ async def test_a_reported_actual_cannot_be_passed_off_as_the_consensus() -> None
 
 
 async def test_a_claim_records_how_it_departs_from_the_market_view() -> None:
-    support = await _emit_supporting_fact()
+    support, upstream = await _both_ends()
     consensus = await _emit_consensus_fact()
 
     recorded = json.loads(await emit_claim.ainvoke(_claim_args(
-        depends_on=[support], counter_evidence=[support],
+        depends_on=[support, upstream], counter_evidence=[support],
         consensus_refs=[consensus],
         consensus_delta="Street assumes packaging is not the binding constraint.",
     )))
@@ -443,3 +449,43 @@ async def test_a_claim_records_how_it_departs_from_the_market_view() -> None:
     claim = ledger_claims()[0]
     assert claim["consensus_refs"] == [consensus]
     assert claim["consensus_delta"].startswith("Street assumes")
+
+
+# ── Relevance: a claim about an edge needs evidence from both ends ─────────
+
+
+async def _emit_upstream_fact() -> str:
+    """A fact about a different company than _fact_args' META."""
+    return json.loads(await emit_fact.ainvoke(_fact_args(
+        entity="TSM", metric="cowos_capacity", value=130_000,
+        unit="wafers_per_month", tier="secondary", concept="", accession="",
+        source_url="https://example-trade.test/cowos",
+    )))["fact_id"]
+
+
+async def test_a_transmission_claim_built_only_from_the_driver_is_rejected() -> None:
+    # The live run produced nine claims about TSMC packaging and HBM suppliers
+    # while citing nothing but NVIDIA figures. Every other gate passed it:
+    # falsification present, ids real, counter-evidence supplied. Nothing asked
+    # whether the evidence had anything to do with the node being claimed about.
+    driver = await _emit_supporting_fact()
+
+    rejected = json.loads(await emit_claim.ainvoke(_claim_args(
+        edge_from="nvda", edge_to="tsmc_advanced_packaging",
+        depends_on=[driver], counter_evidence=[driver],
+    )))
+
+    assert rejected["status"] == "rejected"
+    assert "one entity" in rejected["error"] or "entity" in rejected["error"]
+
+
+async def test_a_claim_citing_both_ends_of_the_edge_is_recorded() -> None:
+    driver = await _emit_supporting_fact()
+    upstream = await _emit_upstream_fact()
+
+    recorded = json.loads(await emit_claim.ainvoke(_claim_args(
+        edge_from="nvda", edge_to="tsmc_advanced_packaging",
+        depends_on=[driver, upstream], counter_evidence=[upstream],
+    )))
+
+    assert recorded["status"] == "recorded"

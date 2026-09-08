@@ -261,6 +261,26 @@ async def emit_claim(
                 "returned by emit_fact. Emit the number as a fact first."
             )
 
+    # A transmission claim needs evidence from both ends of the edge. Without
+    # this, a claim about a supplier can be assembled entirely from the
+    # customer's own figures and pass every other gate — which is exactly what
+    # happened: nine claims about packaging and memory suppliers, sourced
+    # wholly from the accelerator vendor's income statement.
+    entities = {
+        (facts_by_id.get(ref) or {}).get("entity")
+        for ref in refs
+    } - {None}
+    if refs and len(entities) < 2:
+        only = next(iter(entities), "?")
+        return _rejected(
+            f"every cited fact is about one entity ({only}), but this claim is "
+            f"about {edge_from} → {edge_to}. A transmission claim needs at "
+            "least one fact about the other end of the edge. If the harvest "
+            "did not find data on it, say so in your summary — that is a real "
+            "finding. Inferring a supplier's position from its customer's "
+            "numbers is not."
+        )
+
     against = list(counter_evidence or [])
     if not against:
         return _rejected(

@@ -28,27 +28,52 @@ _ENABLED = os.environ.get("EQUITY_RESEARCH_LIVE_EDGAR", "").lower() in (
     "1", "true", "yes", "on",
 )
 
-pytestmark = pytest.mark.skipif(
+_live_only = pytest.mark.skipif(
     not _ENABLED,
     reason="live EDGAR suite; set EQUITY_RESEARCH_LIVE_EDGAR=1 to run",
 )
 
 
+# The pins live HERE, not in the tag map.
+#
+# They used to sit beside each mapping, which put real financial values inside a
+# file the agent loads as chain knowledge — and a live run duly read them out
+# and emitted them as harvested market facts, graded `secondary` so the gate
+# skipped the very numbers it could most easily have checked. Correct values,
+# so nothing looked wrong; a stale pin would have been reported as current fact
+# with no symptom at all. Test fixtures belong in the tests.
+#
+# Each entry: (ticker, metric, calendar_period, filed value).
+_PINS: list[tuple[str, str, str, float]] = [
+    ("GOOGL", "capex", "CY2026Q1", 35674000000),
+    ("META", "capex", "CY2026Q1", 18997000000),
+    ("MSFT", "capex", "CY2026Q1", 30876000000),
+    ("MU", "capex", "CY2025Q4", 5389000000),
+    ("MU", "revenue", "CY2026Q2", 41456000000),
+    ("NVDA", "revenue", "CY2026Q2", 96221000000),
+]
+
+
 def _pinned_cases() -> list[tuple[str, str, str, float]]:
-    """Every mapping that has a pinned known-good value."""
-    cases: list[tuple[str, str, str, float]] = []
-    for metric, mapping in load_tag_map().get("metrics", {}).items():
-        for ticker, entry in mapping.get("companies", {}).items():
-            regression = entry.get("regression")
-            if not isinstance(regression, dict):
-                continue  # not yet calibrated against a real filing
-            cases.append((
-                ticker, metric,
-                regression["calendar_period"], regression["value"],
-            ))
-    return cases
+    """Pins whose mapping still exists, so a removed mapping fails loudly."""
+    mappings = load_tag_map().get("metrics", {})
+    return [
+        pin for pin in _PINS
+        if pin[0] in (mappings.get(pin[1], {}).get("companies") or {})
+    ]
 
 
+def test_every_pin_still_has_a_mapping() -> None:
+    """A pin without a mapping is a silently skipped check."""
+    mappings = load_tag_map().get("metrics", {})
+    orphans = [
+        (t, m) for t, m, _, _ in _PINS
+        if t not in (mappings.get(m, {}).get("companies") or {})
+    ]
+    assert orphans == [], f"pins with no mapping: {orphans}"
+
+
+@_live_only
 @pytest.mark.parametrize(
     ("ticker", "metric", "calendar_period", "expected"), _pinned_cases(),
 )

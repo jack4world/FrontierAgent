@@ -9,18 +9,20 @@
 #   cik          zero-padded SEC CIK, used to build the companyconcept URL
 #   concept      the us-gaap tag this company reports the metric under
 #   calibration  how the tag was confirmed to be the right one FOR THIS FILER
-#   regression   a known-good (calendar_period, value) pair
 #
-# `regression` is what catches silent drift: when a filer switches tags, the
-# lookup keeps succeeding against the wrong concept and the gate quietly starts
-# verifying the wrong number. A verifier that is broken without saying so is
-# worse than no verifier. The network-gated suite in
-# tests/network/test_tag_map_regression.py asserts these pairs against live
-# EDGAR; entries with `regression: null` are skipped.
+# THIS FILE CONTAINS NO FINANCIAL VALUES, ON PURPOSE.
 #
-# regression values are deliberately left null until each is read off an actual
-# filing. Seeding them with plausible-looking numbers would be exactly the
-# fabrication this system exists to prevent.
+# It used to carry a known-good value per mapping, to catch the case where a
+# filer switches tags and the lookup keeps succeeding against the wrong
+# concept. A live run then read this file and emitted those values as market
+# facts — byte-identical, and graded `secondary`, so the gate never checked the
+# most checkable numbers in the run. They were right that day, which is exactly
+# what makes it dangerous: nothing here updates, so a stale pin would be
+# reported as current fact with no visible symptom.
+#
+# The pins now live in tests/network/test_tag_map_regression.py, where the
+# agent cannot reach them. This file is a mapping reference: it tells you which
+# tag to ask EDGAR for. It is never a source of numbers.
 
 metrics:
   revenue:
@@ -40,10 +42,6 @@ metrics:
           than an error — the exact silent drift the regression pin exists to
           catch. Fiscal year ends 31 January, so FY and CY quarters are offset
           by one: FY2027Q2 is CY2026Q2.
-        regression:
-          calendar_period: CY2026Q2
-          value: 96221000000
-          source: "10-Q accession 0001045810-26-000075, period ended 2026-07-26"
       MU:
         cik: "0000723125"
         concept: RevenueFromContractWithCustomerExcludingAssessedTax
@@ -55,10 +53,6 @@ metrics:
           default with exceptions. Fiscal year ends around end-August, so
           CY2026Q2 is FY2026Q3 — a different offset again from NVDA's January
           year-end.
-        regression:
-          calendar_period: CY2026Q2
-          value: 41456000000
-          source: "companyconcept frame CY2026Q2 / FY2026Q3"
 
   capex:
     description: >-
@@ -76,10 +70,6 @@ metrics:
           NOT yet checked against the cash-flow statement for whether principal
           payments on finance leases are reported separately — do that before
           using this for a level comparison rather than a growth rate.
-        regression:
-          calendar_period: CY2026Q1
-          value: 18997000000
-          source: "companyconcept frame CY2026Q1 / FY2026Q1"
       MSFT:
         cik: "0000789019"
         concept: PaymentsToAcquirePropertyPlantAndEquipment
@@ -88,20 +78,12 @@ metrics:
           CY2026Q1 is FY2026Q3. Comparing "Q1" across this filer and a December
           year-end filer without reading both labels lines up quarters that are
           not the same three months.
-        regression:
-          calendar_period: CY2026Q1
-          value: 30876000000
-          source: "companyconcept frame CY2026Q1 / FY2026Q3"
       GOOGL:
         cik: "0001652044"
         concept: PaymentsToAcquirePropertyPlantAndEquipment
         calibration: >-
           VERIFIED 2026-09-08; 24 quarterly frames, calendar and fiscal quarters
           aligned (December year-end).
-        regression:
-          calendar_period: CY2026Q1
-          value: 35674000000
-          source: "companyconcept frame CY2026Q1 / FY2026Q1"
       MU:
         cik: "0000723125"
         concept: PaymentsToAcquirePropertyPlantAndEquipment
@@ -110,7 +92,3 @@ metrics:
           supplier that files with the SEC, so it is the sole memory node this
           gate can hard-verify at all — SK Hynix and Samsung file in Korea and
           are unreachable here by construction.
-        regression:
-          calendar_period: CY2025Q4
-          value: 5389000000
-          source: "companyconcept frame CY2025Q4 / FY2026Q1"
