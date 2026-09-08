@@ -20,6 +20,10 @@ _NODES_PATH = (
     Path(__file__).resolve().parents[2] / "skills" / "ai-compute-chain" / "nodes.yaml"
 )
 _NON_ALNUM = re.compile(r"[^a-z0-9]+")
+# Entities collapse completely: "SK Hynix", "SK_Hynix" and "SKHYNIX" are one
+# company, and a gate that rejects a claim over a space teaches the analyst
+# that citing the right company does not help.
+_ENTITY_STRIP = re.compile(r"[^a-z0-9]")
 
 
 def _normalise(name: str) -> str:
@@ -48,10 +52,23 @@ def resolve_node(name: str) -> str | None:
     return None
 
 
+def _fold_entity(name: str) -> str:
+    return _ENTITY_STRIP.sub("", (name or "").lower())
+
+
 def entities_for_node(node: str) -> set[str]:
-    """Tickers belonging to a canonical node."""
+    """Tickers and company names belonging to a canonical node, as written."""
     spec = load_nodes().get(node) or {}
     return {str(e).upper() for e in spec.get("entities", [])}
+
+
+def entity_in_node(entity: str, node: str) -> bool:
+    """Whether a fact's entity belongs to a node, however it was spelled."""
+    folded = _fold_entity(entity)
+    if not folded:
+        return False
+    spec = load_nodes().get(node) or {}
+    return any(folded == _fold_entity(e) for e in spec.get("entities", []))
 
 
 def known_node_names() -> list[str]:

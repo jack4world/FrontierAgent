@@ -19,6 +19,7 @@ import re
 from frontier_agent.core.tool import tool
 from plugins.tools.finance.chain import (
     entities_for_node,
+    entity_in_node,
     known_node_names,
     resolve_node,
 )
@@ -292,7 +293,7 @@ async def emit_claim(
             "invented mid-run, where nothing can check it."
         )
     node_entities = entities_for_node(node)
-    if node_entities and not (entities & node_entities):
+    if node_entities and not any(entity_in_node(e, node) for e in entities):
         return _rejected(
             f"no cited fact is about {node} (any of {sorted(node_entities)}); "
             f"the facts cited are about {sorted(entities)}. A claim about a "

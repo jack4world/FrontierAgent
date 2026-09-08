@@ -16,17 +16,18 @@
 nodes:
   csp_capex:
     aliases: [hyperscaler_capex, cloud_capex, csp, hyperscalers]
-    entities: [META, MSFT, GOOGL, GOOG, AMZN, ORCL]
+    entities: [META, Meta Platforms, MSFT, Microsoft, GOOGL, GOOG, Alphabet,
+               AMZN, Amazon, ORCL, Oracle]
 
   accelerators:
     aliases: [nvda, nvda_revenue, gpu, accelerator_demand, compute]
-    entities: [NVDA, AMD, AVGO]
+    entities: [NVDA, NVIDIA, AMD, Advanced Micro Devices, AVGO, Broadcom]
 
   advanced_packaging:
     aliases:
       [tsmc_advanced_packaging, tsm_cowos_capacity, cowos, packaging,
        tsmc_cowos, advanced_packaging_capacity]
-    entities: [TSM, TSMC]
+    entities: [TSM, TSMC, Taiwan Semiconductor, Taiwan Semiconductor Manufacturing]
 
   hbm:
     aliases:
@@ -35,16 +36,17 @@ nodes:
     # SK Hynix and Samsung file in Korea and are unreachable by the XBRL gate;
     # they belong to the node regardless, because a claim citing them is still
     # better evidenced than one citing neither.
-    entities: [MU, SKHYNIX, SK_HYNIX, SAMSUNG, HYNIX]
+    entities: [MU, Micron, Micron Technology, SKHYNIX, SK Hynix, SK_Hynix,
+               Hynix, SAMSUNG, Samsung Electronics]
 
   optical_modules:
     aliases: [optics, datacom_optics, transceivers, optical]
-    entities: [COHR, LITE, INNOLIGHT, EOPT]
+    entities: [COHR, Coherent, LITE, Lumentum, InnoLight, Eoptolink]
 
   thermal:
     aliases: [liquid_cooling, cooling]
-    entities: [VRT, SMCI]
+    entities: [VRT, Vertiv, SMCI, Supermicro, Super Micro]
 
   power:
     aliases: [power_delivery, facility_power]
-    entities: [VRT, ETN, PWR]
+    entities: [VRT, Vertiv, ETN, Eaton, PWR, Quanta Services]

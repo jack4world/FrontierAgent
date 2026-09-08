@@ -46,3 +46,21 @@ def test_a_node_maps_to_the_companies_behind_it() -> None:
     # Korean filers belong to the node even though the XBRL gate cannot reach
     # them: a claim citing them is still better evidenced than one citing none.
     assert "SKHYNIX" in entities_for_node("hbm")
+
+
+def test_entities_match_the_names_a_model_actually_writes() -> None:
+    # The analyst writes "SK Hynix", not "SKHYNIX", and "Micron", not "MU".
+    # Matching on the raw string rejects a well-evidenced claim for a spacing
+    # difference — a false rejection is worse than no gate, because it teaches
+    # the analyst that citing the right company does not help.
+    from plugins.tools.finance.chain import entity_in_node
+
+    for name in ("SK Hynix", "SK_Hynix", "SKHynix", "sk hynix", "SKHYNIX"):
+        assert entity_in_node(name, "hbm"), name
+    for name in ("Micron", "Micron Technology", "MU", "mu"):
+        assert entity_in_node(name, "hbm"), name
+    for name in ("TSMC", "TSM", "Taiwan Semiconductor"):
+        assert entity_in_node(name, "advanced_packaging"), name
+
+    assert not entity_in_node("NVDA", "hbm")
+    assert not entity_in_node("", "hbm")
