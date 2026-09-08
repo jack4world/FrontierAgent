@@ -105,8 +105,11 @@ async def equity_research_node(
             len(facts), len(result.facts), verdicts,
         )
 
+        harvest_stop = getattr(harvest, "stopped_by", None)
+        analysis_stop = getattr(analysis, "stopped_by", None)
         report = render_report(
             question, result.facts, result.claims, result.findings, result.removed,
+            harvest_stopped_by=harvest_stop, analysis_stopped_by=analysis_stop,
         )
         return {
             "final_answer": report,
@@ -123,8 +126,8 @@ async def equity_research_node(
                 }
                 for f in result.findings
             ],
-            "harvest_stopped_by": getattr(harvest, "stopped_by", None),
-            "analysis_stopped_by": getattr(analysis, "stopped_by", None),
+            "harvest_stopped_by": harvest_stop,
+            "analysis_stopped_by": analysis_stop,
         }
     finally:
         # Clear while the scope is still pinned, then release it.

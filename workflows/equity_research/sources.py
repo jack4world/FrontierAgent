@@ -203,15 +203,48 @@ def score_claim(claim: Any, findings: list[Any]) -> tuple[str, str]:
     return evidence, stance
 
 
+# A phase that ends this way did not finish its work. The reader has to be
+# told, or a report thin because the harvest crashed looks exactly like a
+# report thin because the evidence is genuinely scarce.
+_UNCLEAN_STOPS = {
+    "llm_error": "the model endpoint returned an error mid-phase",
+    "max_turns": "the turn budget ran out before the phase was done",
+    "wall_deadline": "the time budget ran out before the phase was done",
+    "budget_exhausted": "the token budget ran out before the phase was done",
+}
+
+
+def render_run_health(harvest_stop: str | None, analysis_stop: str | None) -> str:
+    """Say plainly when a phase was cut short."""
+    problems = [
+        f"- **{phase} did not complete**: {_UNCLEAN_STOPS[stop]} (`{stop}`)."
+        for phase, stop in (("Harvest", harvest_stop), ("Analysis", analysis_stop))
+        if stop in _UNCLEAN_STOPS
+    ]
+    if not problems:
+        return ""
+    return (
+        "> ⚠️ **This run was cut short.**\n>\n"
+        + "\n".join(f"> {p}" for p in problems)
+        + "\n>\n> Treat gaps below as unknown rather than as absence of "
+        "evidence: the run stopped before it could look.\n"
+    )
+
+
 def render_report(
     question: str,
     facts: list[Any],
     claims: list[Any],
     findings: list[Any],
     removed: list[Fact] | None = None,
+    harvest_stopped_by: str | None = None,
+    analysis_stopped_by: str | None = None,
 ) -> str:
     """Assemble the deliverable: claims first, then what the gate did."""
     out = [f"# Supply-chain transmission analysis\n\n**Question:** {question}\n"]
+    health = render_run_health(harvest_stopped_by, analysis_stopped_by)
+    if health:
+        out.append(health)
 
     if claims:
         out.append("## At a glance\n")

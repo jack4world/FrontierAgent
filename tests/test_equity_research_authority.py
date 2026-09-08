@@ -46,3 +46,17 @@ def test_the_gate_stamps_a_grade_onto_secondary_facts() -> None:
     )
 
     assert result.facts[0]["source"]["authority"] == "unrated"
+
+
+def test_a_run_cut_short_says_so_at_the_top_of_its_report() -> None:
+    # A report thin because the harvest crashed looks identical to one thin
+    # because the evidence is genuinely scarce. The reader cannot tell those
+    # apart, and they mean opposite things.
+    from workflows.equity_research.sources import render_run_health
+
+    banner = render_run_health("llm_error", "max_turns")
+
+    assert "cut short" in banner
+    assert "Harvest did not complete" in banner
+    assert "Analysis did not complete" in banner
+    assert render_run_health(None, None) == ""

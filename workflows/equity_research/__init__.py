@@ -57,7 +57,9 @@ _ANALYST_TOOLS = [
     # Arithmetic is a tool here, not something the model does in prose:
     # a transmission question is a rate, and a rate has to be computed.
     "compute_metric",
-    "submit_report",
+    # No submit_report. Its deliverable is the claims table, and an ungated
+    # free-text terminal is an escape hatch from every gate on emit_claim —
+    # a live run used it three times and emitted no claims at all.
     # read_text is what turns injected skill metadata into loadable content.
     "read_text",
     "grep_search",

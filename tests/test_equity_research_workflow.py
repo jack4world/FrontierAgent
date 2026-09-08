@@ -172,3 +172,17 @@ def test_neither_role_carries_a_tool_this_pipeline_cannot_service(
     for role_id in (MAIN_ROLE_ID, ANALYST_ROLE_ID):
         dead = _UNSERVICEABLE.intersection(agents.get(role_id).allowed_tools)
         assert dead == set(), f"{role_id} carries unserviceable tools: {sorted(dead)}"
+
+
+def test_the_analyst_has_no_prose_escape_hatch(agents: AgentRegistry) -> None:
+    # A live run answered by calling submit_report three times with four
+    # thousand words of prose and emitting zero claims. submit_report accepts
+    # any text and applies no gate, so every constraint on emit_claim —
+    # falsification, counter-evidence, grounded derivations, downstream
+    # evidence — was sidestepped simply by not using it.
+    #
+    # The analyst's deliverable is the claims table. The loop ends when it
+    # stops calling tools; it does not need a way to hand in an essay instead.
+    analyst = agents.get(ANALYST_ROLE_ID)
+
+    assert "submit_report" not in analyst.allowed_tools
