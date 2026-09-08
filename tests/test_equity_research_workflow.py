@@ -7,6 +7,8 @@ exactly why they are cheap to pin.
 
 from __future__ import annotations
 
+import importlib
+
 import pytest
 
 from frontier_agent.core.runtime.registries.agents import AgentRegistry
@@ -14,7 +16,12 @@ from frontier_agent.core.runtime.registries.workflows import WorkflowContext
 from frontier_agent.scheduling.pipeline_registry import PipelineRegistry
 from plugins.tools import get_builtin_tools
 from workflows.agent_team import WEB_TOOL_NAMES
-from workflows.equity_research import ANALYST_ROLE_ID, MAIN_ROLE_ID, register
+from workflows.equity_research import (
+    ANALYST_ROLE_ID,
+    MAIN_ROLE_ID,
+    PIPELINE_ID,
+    register,
+)
 
 
 @pytest.fixture
@@ -96,3 +103,39 @@ def test_data_collection_is_a_tool_on_the_coordinator_not_a_separate_agent(
 
     assert "fetch_xbrl_metric" in coordinator.allowed_tools
     assert not agents.has("equity_research_harvester")
+
+
+# ── Pipeline ──────────────────────────────────────────────────────────────
+
+
+@pytest.fixture
+def pipelines() -> PipelineRegistry:
+    registry = PipelineRegistry()
+    register(WorkflowContext(registry, AgentRegistry()))
+    return registry
+
+
+def test_the_pipeline_is_registered_and_entered_at_our_own_role(
+    pipelines: PipelineRegistry,
+) -> None:
+    # Borrowing a shipped coordinator node would resolve its own role ids at
+    # import, silently running these roles as somebody else's. The entry node
+    # must name our role.
+    spec = pipelines.get(PIPELINE_ID)
+
+    node = next(n for n in spec.nodes if n.node_id == spec.entry_point)
+    assert node.role_id == MAIN_ROLE_ID
+    assert (node.node_function or "").startswith("workflows.equity_research.")
+
+
+def test_the_node_function_actually_imports(pipelines: PipelineRegistry) -> None:
+    # A dotted path is a string until something dereferences it. Left unchecked,
+    # a typo surfaces inside the scheduler long after the run has started and
+    # the harvest has already been paid for.
+    spec = pipelines.get(PIPELINE_ID)
+    node = next(n for n in spec.nodes if n.node_id == spec.entry_point)
+
+    module_path, _, attr = (node.node_function or "").rpartition(".")
+    resolved = getattr(importlib.import_module(module_path), attr)
+
+    assert callable(resolved)

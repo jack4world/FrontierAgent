@@ -1,0 +1,43 @@
+[
+  {
+    "entity": "NVDA",
+    "metric": "revenue_growth_guidance",
+    "value": 70.0,
+    "unit": "percent",
+    "fiscal_period": "FY2028",
+    "calendar_period": "FY2028",
+    "tier": "quoted_primary",
+    "source_url": "https://s201.q4cdn.com/141608511/files/content_files/TRANSCRIPT_-NVIDIA-Corp-NVDA-US-Q2-2027-Earnings-Call-26-August-2026-5_00-PM-ET.pdf",
+    "as_of": "2026-08-26",
+    "verbatim": "We expect to grow revenue by approximately 70% in fiscal 2028"
+  },
+
+  {
+    "_comment": "Same shape, but this sentence was never said. The gate deletes it rather than correcting it: there is no right value to substitute for an invented quotation.",
+    "entity": "NVDA",
+    "metric": "revenue_growth_guidance_fabricated",
+    "value": 90.0,
+    "unit": "percent",
+    "fiscal_period": "FY2028",
+    "calendar_period": "FY2028",
+    "tier": "quoted_primary",
+    "source_url": "https://s201.q4cdn.com/141608511/files/content_files/TRANSCRIPT_-NVIDIA-Corp-NVDA-US-Q2-2027-Earnings-Call-26-August-2026-5_00-PM-ET.pdf",
+    "as_of": "2026-08-26",
+    "verbatim": "We expect to grow revenue by approximately 90% in fiscal 2028"
+  },
+
+  {
+    "_comment": "Mis-transcribed: 96.0 against a filed 96.221. The gate corrects it in place, because the correct value is already in its hand and a re-run would only drift again.",
+    "entity": "NVDA",
+    "metric": "revenue",
+    "value": 96000000000,
+    "unit": "USD",
+    "fiscal_period": "FY2027Q2",
+    "calendar_period": "CY2026Q2",
+    "tier": "xbrl_verified",
+    "source_url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000075/nvda-20260726.htm",
+    "accession": "0001045810-26-000075",
+    "concept": "Revenues",
+    "as_of": "2026-08-26"
+  }
+]

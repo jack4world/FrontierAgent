@@ -15,9 +15,12 @@ from __future__ import annotations
 
 from frontier_agent.core.runtime.registries.workflows import WorkflowContext
 from frontier_agent.models.agent_definition import AgentDefinition
-
-MAIN_ROLE_ID = "equity_research_main"
-ANALYST_ROLE_ID = "equity_research_analyst"
+from workflows.equity_research.identity import (
+    ANALYST_ROLE_ID,
+    MAIN_ROLE_ID,
+    PIPELINE_ID,
+)
+from workflows.equity_research.spec import EQUITY_RESEARCH_SPEC
 
 # The coordinator harvests and delegates. Harvesting lives here rather than in
 # a sub-agent so the numbers enter the ledger straight from the API response.
@@ -93,12 +96,15 @@ ANALYST_AGENT_DEF = AgentDefinition(
 def register(ctx: WorkflowContext) -> None:
     ctx.register_agent(MAIN_AGENT_DEF)
     ctx.register_agent(ANALYST_AGENT_DEF)
+    ctx.register_pipeline(EQUITY_RESEARCH_SPEC)
 
 
 __all__ = [
     "ANALYST_AGENT_DEF",
     "ANALYST_ROLE_ID",
+    "EQUITY_RESEARCH_SPEC",
     "MAIN_AGENT_DEF",
     "MAIN_ROLE_ID",
+    "PIPELINE_ID",
     "register",
 ]
