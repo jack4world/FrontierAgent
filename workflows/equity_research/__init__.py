@@ -22,16 +22,18 @@ from workflows.equity_research.identity import (
 )
 from workflows.equity_research.spec import EQUITY_RESEARCH_SPEC
 
-# The coordinator harvests and delegates. Harvesting lives here rather than in
-# a sub-agent so the numbers enter the ledger straight from the API response.
+# The harvest phase. It gathers and records; it does not conclude.
+#
+# `emit_fact` is the point of the phase, not an accessory: an unbound tool is
+# absent rather than refused, so a harvest without it burns its whole turn
+# budget following an instruction it cannot carry out and reports no error.
+#
+# No sub-agent or task-board tools. The node runs two sequential phases rather
+# than spawning, so `create_subagent` and friends would be dead ends the model
+# can still call — an invitation to delegate into a void.
 _MAIN_TOOLS = [
-    "create_subagent",
-    "assign_task",
-    "collect_reports",
-    "stop_subagent",
-    "add_task",
-    "update_task",
-    "finish_planning",
+    # Recording — the output of this phase.
+    "emit_fact",
     # Harvesting.
     "fetch_xbrl_metric",
     "fetch_xbrl_concept",

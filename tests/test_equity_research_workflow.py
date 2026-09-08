@@ -139,3 +139,36 @@ def test_the_node_function_actually_imports(pipelines: PipelineRegistry) -> None
     resolved = getattr(importlib.import_module(module_path), attr)
 
     assert callable(resolved)
+
+
+# ── Each phase must hold the tools its own prompt demands ─────────────────
+
+# Tools that need sub-agent or task-board machinery the single-node pipeline
+# never sets up. Bound to a role, they are dead ends the model can still call.
+_UNSERVICEABLE = frozenset({
+    "create_subagent", "assign_task", "collect_reports", "stop_subagent",
+    "add_task", "update_task", "finish_planning",
+})
+
+
+def test_the_harvest_phase_can_record_what_its_prompt_tells_it_to_record(
+    agents: AgentRegistry,
+) -> None:
+    # The harvest prompt is an instruction to call emit_fact. Without the tool
+    # bound, the phase runs its full turn budget and records nothing — and
+    # nothing in the run reports an error, because an unbound tool is simply
+    # absent rather than refused.
+    coordinator = agents.get(MAIN_ROLE_ID)
+
+    assert "emit_fact" in coordinator.allowed_tools
+
+
+def test_neither_role_carries_a_tool_this_pipeline_cannot_service(
+    agents: AgentRegistry,
+) -> None:
+    # The role lists were written for a coordinator that spawned sub-agents.
+    # The node runs two sequential phases instead, so those tools now lead
+    # nowhere; leaving them bound invites the model to delegate into a void.
+    for role_id in (MAIN_ROLE_ID, ANALYST_ROLE_ID):
+        dead = _UNSERVICEABLE.intersection(agents.get(role_id).allowed_tools)
+        assert dead == set(), f"{role_id} carries unserviceable tools: {sorted(dead)}"
