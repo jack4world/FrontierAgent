@@ -17,6 +17,7 @@ import httpx
 
 from plugins.tools.finance.edgar import fetch_xbrl_metric
 from plugins.tools.finance.ledger import Fact
+from workflows.equity_research.authority import UNRATED, summarize_authority
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +148,9 @@ def render_facts_block(facts: list[Fact]) -> str:
         lines.append(
             f"- `{fact['fact_id']}` — {fact.get('entity')} {fact.get('metric')} "
             f"{period}: {fact.get('value')} {fact.get('unit')} "
-            f"[tier={fact.get('tier')}, basis={fact.get('basis', 'reported')}]"
+            f"[tier={fact.get('tier')}, basis={fact.get('basis', 'reported')}"
+            + (f", source={(fact.get('source') or {}).get('authority')}]"
+               if (fact.get("source") or {}).get("authority") else "]")
         )
     return "\n".join(lines)
 
@@ -220,6 +223,15 @@ def render_report(
             out.append(
                 f"| `{claim.get('claim_id')}` | {edge.get('from')} → {edge.get('to')} "
                 f"| {evidence} | {stance} |"
+            )
+        counts = summarize_authority(facts)
+        if counts.get(UNRATED):
+            out.append(
+                f"\n**Secondary sources: {counts.get('established', 0)} established, "
+                f"{counts[UNRATED]} unrated.** Unrated means this system has no "
+                "basis to judge the publisher, not that the source is poor — but "
+                "a conclusion resting mostly on unrated sources is resting on "
+                "material nobody here has vouched for."
             )
         out.append(
             "\n_Well-evidenced and identical to the market view is sound and "

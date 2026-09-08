@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from plugins.tools.finance.ledger import Claim, Fact
+from workflows.equity_research.authority import grade_source
 
 # (fact) -> the authoritative value from XBRL, or None when the concept /
 # period is not reported.
@@ -83,8 +84,13 @@ def verify(
         elif tier == "secondary":
             # Nothing to check against. Say so and keep the number — the
             # highest-frequency nodes on the chain live here, and dropping
-            # them would cost more than labelling them.
-            checked, finding = fact, Finding(
+            # them would cost more than labelling them. What can still be
+            # said is what kind of source it came from, and the gate says it
+            # rather than the harvest, so the model cannot grade its own picks.
+            source = dict(fact.get("source") or {})
+            source["authority"] = grade_source(source.get("url") or "")
+            checked = {**fact, "source": source}
+            finding = Finding(
                 fact_id=fact["fact_id"], verdict=Verdict.UNVERIFIED,
             )
         else:
