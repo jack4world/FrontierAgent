@@ -9,6 +9,7 @@ EXPECTED_TOOLS = {
     "bash",
     "collect_reports",
     "create_file",
+    "compute_metric",
     "create_subagent",
     "download_file",
     "emit_claim",

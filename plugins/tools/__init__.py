@@ -16,6 +16,7 @@ from plugins.tools.file_editor import (
     file_editor_str_replace,
     file_editor_view,
 )
+from plugins.tools.finance.compute import compute_metric
 from plugins.tools.finance.edgar import fetch_xbrl_concept, fetch_xbrl_metric
 from plugins.tools.finance.emit import emit_claim, emit_fact
 from plugins.tools.glob_search import glob_search
@@ -68,6 +69,7 @@ _BUILTIN_TOOLS: list[Tool] = [
     fetch_xbrl_concept,
     emit_fact,
     emit_claim,
+    compute_metric,
 ]
 
 

@@ -54,6 +54,9 @@ _MAIN_TOOLS = [
 _ANALYST_TOOLS = [
     "emit_fact",
     "emit_claim",
+    # Arithmetic is a tool here, not something the model does in prose:
+    # a transmission question is a rate, and a rate has to be computed.
+    "compute_metric",
     "submit_report",
     # read_text is what turns injected skill metadata into loadable content.
     "read_text",

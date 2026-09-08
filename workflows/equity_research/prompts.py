@@ -79,6 +79,13 @@ Rules that are enforced — `emit_claim` will reject you otherwise:
   the one who looked closest at this link, so you are the one positioned to say
   where it breaks. If the harvest did not give you the fact you would need,
   say so in the statement rather than omitting the field's spirit.
+- **Do not do arithmetic yourself. Use `compute_metric`.** A transmission
+  question is a rate question — "does the upstream node grow as fast as the
+  driver?" — and a rate has to be computed from two figures, not asserted. Any
+  claim that an edge does or does not keep up must cite a computed growth rate
+  for the upstream figure and a computed growth rate for the driver, so the
+  comparison is a number the reader can check rather than an adjective. Saying
+  "grows more slowly in relative terms" without the two rates is not an answer.
 - A quantified `impact_value` requires a `derivation` in which every step names
   the fact_id it consumes. If you cannot show the arithmetic, **leave the number
   out and state direction only**. That is an accepted, honest answer. A number
