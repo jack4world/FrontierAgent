@@ -23,6 +23,28 @@
 # fabrication this system exists to prevent.
 
 metrics:
+  revenue:
+    description: >-
+      Total revenue for the period. The driver metric when an accelerator
+      vendor's own results are the signal being transmitted downstream.
+    companies:
+      NVDA:
+        cik: "0001045810"
+        concept: Revenues
+        calibration: >-
+          VERIFIED 2026-09-08 against companyconcept frames. NVDA reports total
+          revenue under `Revenues`; it used
+          `RevenueFromContractWithCustomerExcludingAssessedTax` only through
+          FY2020 and that concept has had no framed quarter since CY2019Q4.
+          Querying the abandoned tag returns HTTP 200 with stale data rather
+          than an error — the exact silent drift the regression pin exists to
+          catch. Fiscal year ends 31 January, so FY and CY quarters are offset
+          by one: FY2027Q2 is CY2026Q2.
+        regression:
+          calendar_period: CY2026Q2
+          value: 96221000000
+          source: "10-Q accession 0001045810-26-000075, period ended 2026-07-26"
+
   capex:
     description: >-
       Cash paid for property, plant and equipment in the period. Note that
